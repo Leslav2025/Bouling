@@ -150,7 +150,7 @@
         const actionBtn = document.getElementById('action-btn');
         const statusText = document.getElementById('status-text');
 
-        // Веб-аудіо движок
+        // Звуковий рушій
         let audioCtx = null;
         let rollSoundNode = null;
 
@@ -274,10 +274,9 @@
             ball.castShadow = true;
             scene.add(ball);
 
-            // НАДІЙНА І ДУЖЕ ПОМІТНА НЕОНОВА ЛІНІЯ ПРИЦІЛУ
+            // Яскрава лінія прицілу
             const points = [new THREE.Vector3(0, 0.06, 3), new THREE.Vector3(0, 0.06, -1)];
             const aimerGeo = new THREE.BufferGeometry().setFromPoints(points);
-            // Використовуємо яскравий бірюзовий колір (cyan) для максимального контрасту
             const aimerMat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 5 }); 
             aimerLine = new THREE.Line(aimerGeo, aimerMat);
             scene.add(aimerLine);
@@ -322,7 +321,8 @@
             requestAnimationFrame(animate);
 
             if (gameState === 'aiming') {
-                angle += angleDirection * 0.03;
+                // Зменшено крок з 0.03 до 0.011 для плавного та спокійного руху лінії
+                angle += angleDirection * 0.011; 
                 if (angle > 0.55 || angle < -0.55) {
                     angleDirection *= -1;
                 }
