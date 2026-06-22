@@ -671,10 +671,7 @@
             const addressDisplay = document.getElementById('wallet-address-display');
             
             if (wallet) {
-                // Отримуємо сиру адресу гаманця
                 userWalletAddress = wallet.account.address;
-                
-                // Переформатуємо у звичний вигляд для показу
                 const shortAddress = userWalletAddress.slice(0, 6) + '...' + userWalletAddress.slice(-6);
                 addressDisplay.innerText = `Ваш гаманець: ${shortAddress}`;
                 addressDisplay.style.display = 'block';
@@ -689,7 +686,7 @@
             }
         });
 
-        // Логіка відправки крипто-заявки на вивід
+        // Логіка відправки крипто-заявки на вивід (ОНОВЛЕНО З КОПІЮВАННЯМ)
         document.getElementById('submit-withdraw-btn').addEventListener('click', () => {
             const amount = parseInt(document.getElementById('withdraw-amount').value);
 
@@ -714,20 +711,25 @@
             // Секретний перевірочний код проти накруток
             const cryptoCode = 'UA-CRYPTO-' + Math.floor(100000 + Math.random() * 900000);
 
-            // Формуємо крипто-заявку для Telegram
+            // Формуємо чистий текст для копіювання
             const textMessage = `👋 Привіт! Я хочу вивести ${amount} UA на свій гаманець.\n\n` + 
                                 `📍 Адреса мого гаманця:\n${userWalletAddress}\n\n` +
                                 `🔐 Код верифікації: ${cryptoCode}`;
-            
-            const tgUrl = `https://t.me/Leslav?text=${encodeURIComponent(textMessage)}`;
 
-            alert('Крипто-заявку згенеровано! Зараз вас перенаправить до @Leslav, щоб надіслати адресу вашого гаманця.');
-            
-            withdrawOverlay.style.display = 'none';
-            document.getElementById('withdraw-amount').value = '';
+            // Автоматичне копіювання в буфер обміну смартфона
+            navigator.clipboard.writeText(textMessage).then(() => {
+                alert('📋 Заявку автоматично СКОПІЙОВАНО в буфер обміну!\n\nЗараз відкриється Telegram — просто натисніть "ВСТАВИТИ" у чаті та надішліть повідомлення.');
+                
+                withdrawOverlay.style.display = 'none';
+                document.getElementById('withdraw-amount').value = '';
 
-            // Перенаправляємо в Telegram
-            window.open(tgUrl, '_blank');
+                // Перенаправляємо в Telegram
+                const tgUrl = `https://t.me/Leslav`;
+                window.open(tgUrl, '_blank');
+            }).catch(err => {
+                const tgUrl = `https://t.me/Leslav?text=${encodeURIComponent(textMessage)}`;
+                window.open(tgUrl, '_blank');
+            });
         });
 
         window.addEventListener('resize', () => {
