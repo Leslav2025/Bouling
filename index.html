@@ -2,374 +2,234 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>UA Боулінг Клуб</title>
     <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
         body {
-            background-color: #1a1a1a;
-            color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #111827;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            height: 100vh;
             display: flex;
             flex-direction: column;
+        }
+
+        /* Верхня панель (Header) */
+        .header-panel {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            margin: 0;
-            padding: 20px;
+            background-color: #1f2937;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-bottom: 2px solid #374151;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .header-title {
+            color: #f59e0b;
+            text-align: center;
+            font-size: 20px;
+            padding: 5px 0;
+            background-color: #111827;
         }
 
-        h1 {
-            color: #f39c12;
-            margin-bottom: 10px;
-        }
-
-        #game-container {
+        /* Ігрова зона */
+        .game-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             position: relative;
-            width: 400px;
-            height: 600px;
-            background: linear-gradient(to bottom, #2c3e50, #34495e);
-            border: 4px solid #333;
-            border-radius: 10px;
-            overflow: hidden;
+            background-color: #111827;
+        }
+        canvas {
+            background-color: #1e3a8a; /* Колір бортів */
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
 
-        /* Доріжка */
-        #lane {
-            position: absolute;
-            width: 160px;
-            height: 100%;
-            background: #e67e22;
-            left: 120px;
-            border-left: 4px dashed #d35400;
-            border-right: 4px dashed #d35400;
-        }
-
-        /* Кеглі */
-        #pins-container {
-            position: absolute;
-            top: 60px;
-            width: 160px;
-            left: 120px;
-            height: 100px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .pin-row {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 6px;
-        }
-
-        .pin {
-            width: 14px;
-            height: 14px;
-            background-color: #fff;
-            border-radius: 50%;
-            border: 2px solid #e74c3c;
-            transition: all 0.3s ease;
-        }
-
-        .pin.hit {
-            opacity: 0.1;
-            transform: scale(0.5);
-        }
-
-        /* Куля */
-        #ball {
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            background: radial-gradient(circle at 30% 30%, #9b59b6, #8e44ad);
-            border-radius: 50%;
-            bottom: 50px;
-            left: 188px; /* Центр доріжки: 120 + 80 - 12 */
-            transition: bottom 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), left 0.6s linear;
-        }
-
-        /* Приціл (стрілка) */
-        #aimer {
-            position: absolute;
-            bottom: 80px;
-            left: 200px;
-            width: 2px;
-            height: 60px;
-            background: #f1c40f;
-            transform-origin: bottom center;
-            transform: rotate(0deg);
-        }
-
-        /* Інтерфейс */
-        #ui {
-            margin-top: 15px;
+        /* Підказка знизу */
+        .footer-hint {
             text-align: center;
-            width: 400px;
-        }
-
-        button {
-            background-color: #27ae60;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 5px;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            transition: background 0.2s;
-        }
-
-        button:hover {
-            background-color: #2ecc71;
-        }
-
-        button:disabled {
-            background-color: #7f8c8d;
-            cursor: not-allowed;
-        }
-
-        #scoreboard {
-            display: flex;
-            justify-content: space-between;
-            background: #2c3e50;
-            padding: 10px 15px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-            font-size: 18px;
-            border: 1px solid #444;
-        }
-
-        .status-msg {
-            font-size: 20px;
-            font-weight: bold;
-            color: #f1c40f;
-            height: 24px;
-            margin-top: 10px;
+            padding: 10px;
+            background-color: #1f2937;
+            color: #9ca3af;
+            font-size: 14px;
+            border-top: 1px solid #374151;
         }
     </style>
 </head>
 <body>
 
-    <h1>Bowling Club</h1>
-
-    <div id="ui">
-        <div id="scoreboard">
-            <div>Фрейм: <span id="frame-val">1</span>/10</div>
-            <div>Кидок: <span id="roll-val">1</span></div>
-            <div>Очки: <span id="score-val">0</span></div>
-        </div>
+    <div class="header-title">Bowling Club</div>
+    
+    <div class="header-panel">
+        <div>Фрейм: <span id="frame-val">7/10</span></div>
+        <div>Кидок: <span id="throw-val">1</span></div>
+        <div>Очки: <span id="score-val">5</span></div>
     </div>
 
-    <div id="game-container">
-        <div id="lane"></div>
-        
-        <div id="pins-container">
-            <div class="pin-row" id="row-4">
-                <div class="pin" id="pin-7"></div>
-                <div class="pin" id="pin-8"></div>
-                <div class="pin" id="pin-9"></div>
-                <div class="pin" id="pin-10"></div>
-            </div>
-            <div class="pin-row" id="row-3">
-                <div class="pin" id="pin-4"></div>
-                <div class="pin" id="pin-5"></div>
-                <div class="pin" id="pin-6"></div>
-            </div>
-            <div class="pin-row" id="row-2">
-                <div class="pin" id="pin-2"></div>
-                <div class="pin" id="pin-3"></div>
-            </div>
-            <div class="pin-row" id="row-1">
-                <div class="pin" id="pin-1"></div>
-            </div>
-        </div>
-
-        <div id="aimer"></div>
-        <div id="ball"></div>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
     </div>
 
-    <div id="ui">
-        <button id="shoot-btn">СТРІЛЯТИ!</button>
-        <div class="status-msg" id="status-text">Прицілься та тисни кнопку!</div>
-    </div>
+    <div class="footer-hint">Жолобни кулю пальцем вгору, щоб зробити кидок! 🎳</div>
 
     <script>
-        // Ігрові змінні
-        let currentFrame = 1;
-        let currentRoll = 1;
-        let totalScore = 0;
-        let pinsLeft = 10;
-        let pinStatus = Array(10).fill(true); // true = стоїть, false = збита
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-        // Логіка стрілки прицілу
-        let angle = 0;
-        let angleDirection = 1;
-        let isAiming = true;
-        let isRolling = false;
+        // Налаштування адаптивності Canvas під розмір екрану
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const size = Math.min(container.clientWidth, container.clientHeight);
+            canvas.width = size * 0.95;
+            canvas.height = size * 1.5; // Співвідношення сторін доріжки
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-        const ball = document.getElementById('ball');
-        const aimer = document.getElementById('aimer');
-        const shootBtn = document.getElementById('shoot-btn');
-        const statusText = document.getElementById('status-text');
+        // Параметри доріжки
+        const laneColor = '#d97706'; // Помаранчева доріжка як на скріншоті
 
-        // Координати кожної кеглі відносно доріжки (для розрахунку збиття)
-        // Спрощена логіка: залежність від фінального X кулі
-        const pinPositionsX = {
-            1: 0,          // Центр
-            2: -15, 3: 15, // Другий ряд
-            4: -30, 5: 0,  6: 30, // Третій ряд
-            7: -45, 8: -15, 9: 15, 10: 45 // Четвертий ряд
+        // Позиції 10 кеглів (відносно ширини і висоти)
+        let pins = [
+            {x: 0.5, y: 0.15, active: true}, // 1-а кегля (попереду)
+            {x: 0.45, y: 0.12, active: true}, {x: 0.55, y: 0.12, active: true},
+            {x: 0.4, y: 0.09, active: true}, {x: 0.5, y: 0.09, active: true}, {x: 0.6, y: 0.09, active: true},
+            {x: 0.35, y: 0.06, active: true}, {x: 0.45, y: 0.06, active: true}, {x: 0.55, y: 0.06, active: true}, {x: 0.65, y: 0.06, active: true}
+        ];
+
+        // Параметри кулі
+        let ball = {
+            x: canvas.width / 2,
+            y: canvas.height * 0.85,
+            radius: 15,
+            vx: 0,
+            vy: 0,
+            isMoving: false
         };
 
-        // Анімація прицілу
-        function updateAim() {
-            if (!isAiming) return;
+        // Логіка трекінгу свайпу
+        let touchStartX = 0;
+        let touchStartY = 0;
 
-            angle += angleDirection * 1.5;
-            if (angle > 45 || angle < -45) {
-                angleDirection *= -1;
-            }
-            aimer.style.transform = `rotate(${angle}deg)`;
-            requestAnimationFrame(updateAim);
-        }
-        updateAim();
-
-        // Обробник натискання кнопки кидка
-        shootBtn.addEventListener('click', () => {
-            if (isRolling) return;
-            
-            isAiming = false;
-            isRolling = true;
-            shootBtn.disabled = true;
-            statusText.innerText = "Куля котиться...";
-
-            // Розрахунок кінцевої точки кулі на основі кута прицілу
-            const radians = (angle * Math.PI) / 180;
-            const targetY = 80; // Рівень кеглів
-            const distanceY = 550 - targetY;
-            const deviationX = distanceY * Math.sin(radians);
-            
-            const finalBallLeft = 188 + deviationX;
-
-            // Запуск анімації кулі
-            ball.style.bottom = '500px';
-            ball.style.left = `${finalBallLeft}px`;
-            aimer.style.opacity = '0';
-
-            // Перевірка збиття кеглів після завершення кидка
-            setTimeout(() => {
-                calculateHit(deviationX);
-            }, 600);
+        canvas.addEventListener('touchstart', (e) => {
+            if (ball.isMoving) return;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
         });
 
-        function calculateHit(finalX) {
-            // Центр доріжки в системі координат відхилення — це 0
-            // Радіус ураження кулі
-            let hitCount = 0;
-
-            for (let i = 1; i <= 10; i++) {
-                if (pinStatus[i - 1]) {
-                    // Фізика "вибуху": чим ближче куля до центру кеглі, тим вища ймовірність збиття
-                    let distance = Math.abs(finalX - pinPositionsX[i]);
-                    
-                    // Якщо куля пройшла поруч (в межах 25px)
-                    if (distance < 28) {
-                        // Випадковий фактор збиття сусідніх кеглів
-                        if (Math.random() > (distance / 35)) {
-                            pinStatus[i - 1] = false;
-                            document.getElementById(`pin-${i}`).classList.add('hit');
-                            hitCount++;
-                        }
-                    }
-                }
-            }
-
-            pinsLeft -= hitCount;
-            totalScore += hitCount;
+        canvas.addEventListener('touchend', (e) => {
+            if (ball.isMoving) return;
             
-            // Оновлення табло
-            document.getElementById('score-val').innerText = totalScore;
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
 
-            // Логіка результату кидка
-            if (currentRoll === 1) {
-                if (pinsLeft === 0) {
-                    statusText.innerText = "💥 STRIKE! 💥";
-                    endFrame(true);
-                } else {
-                    statusText.innerText = `Збито кеглів: ${hitCount}. Другий кидок!`;
-                    currentRoll = 2;
-                    document.getElementById('roll-val').innerText = currentRoll;
-                    resetBallOnly();
-                }
-            } else {
-                if (pinsLeft === 0) {
-                    statusText.innerText = "✨ SPARE! ✨";
-                } else {
-                    statusText.innerText = `Збито всього: ${10 - pinsLeft}`;
-                }
-                endFrame(false);
+            const diffX = touchEndX - touchStartX;
+            const diffY = touchEndY - touchStartY;
+
+            // Перевірка, що свайп був саме вгору
+            if (diffY < -30) {
+                ball.vx = diffX * 0.05; // Чутливість по горизонталі
+                ball.vy = diffY * 0.05; // Швидкість польоту вгору
+                ball.isMoving = true;
             }
-        }
+        });
 
-        function resetBallOnly() {
-            setTimeout(() => {
-                ball.style.transition = 'none';
-                ball.style.bottom = '50px';
-                ball.style.left = '188px';
+        // Перевірка колізій (збиття кеглів)
+        function checkCollisions() {
+            pins.forEach(pin => {
+                if (!pin.active) return;
                 
-                // Повертаємо приціл
-                setTimeout(() => {
-                    ball.style.transition = 'bottom 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), left 0.6s linear';
-                    aimer.style.opacity = '1';
-                    isAiming = true;
-                    isRolling = false;
-                    shootBtn.disabled = false;
-                    updateAim();
-                }, 50);
-            }, 1200);
-        }
+                // Переводимо відносні координати кеглі в реальні пікселі
+                const pinX = pin.x * canvas.width;
+                const pinY = pin.y * canvas.height;
+                const pinRadius = 8;
 
-        function endFrame(isStrike) {
-            setTimeout(() => {
-                currentFrame++;
-                if (currentFrame > 10) {
-                    statusText.innerText = `Гра закінчена! Твій результат: ${totalScore} балів!`;
-                    shootBtn.innerText = "ЗІГРАТИ ЗНОВУ";
-                    shootBtn.disabled = false;
-                    shootBtn.onclick = () => { location.reload(); };
-                    return;
+                const dist = Math.hypot(ball.x - pinX, ball.y - pinY);
+                if (dist < ball.radius + pinRadius) {
+                    pin.active = false; // Кегля збита!
+                    // Додаємо очки
+                    let currentScore = parseInt(document.getElementById('score-val').innerText);
+                    document.getElementById('score-val').innerText = currentScore + 1;
                 }
-
-                // Скидання до нового фрейму
-                currentRoll = 1;
-                pinsLeft = 10;
-                pinStatus.fill(true);
-                
-                document.getElementById('frame-val').innerText = currentFrame;
-                document.getElementById('roll-val').innerText = currentRoll;
-                
-                // Візуально відновлюємо кеглі
-                document.querySelectorAll('.pin').forEach(p => p.classList.remove('hit'));
-                
-                // Повертаємо кулю
-                ball.style.transition = 'none';
-                ball.style.bottom = '50px';
-                ball.style.left = '188px';
-                
-                setTimeout(() => {
-                    ball.style.transition = 'bottom 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), left 0.6s linear';
-                    aimer.style.opacity = '1';
-                    isAiming = true;
-                    isRolling = false;
-                    shootBtn.disabled = false;
-                    statusText.innerText = "Прицілься та тисни кнопку!";
-                    updateAim();
-                }, 50);
-
-            }, 1500);
+            });
         }
+
+        // Головний ігровий цикл (Оновлення екрану)
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Малюємо борги та пунктирні лінії доріжки
+            const laneWidth = canvas.width * 0.7;
+            const laneX = (canvas.width - laneWidth) / 2;
+            
+            ctx.fillStyle = laneColor;
+            ctx.fillRect(laneX, 0, laneWidth, canvas.height);
+
+            // Пунктирні лінії зліва та справа
+            ctx.strokeStyle = '#b45309';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(laneX, 0); ctx.lineTo(laneX, canvas.height);
+            ctx.moveTo(laneX + laneWidth, 0); ctx.lineTo(laneX + laneWidth, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]); // Скидаємо пунктир
+
+            // 2. Рух кулі
+            if (ball.isMoving) {
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+                checkCollisions();
+
+                // Якщо куля вилетіла за межі екрану — повертаємо її назад
+                if (ball.y < 0 || ball.x < 0 || ball.x > canvas.width) {
+                    ball.isMoving = false;
+                    ball.x = canvas.width / 2;
+                    ball.y = canvas.height * 0.85;
+                    ball.vx = 0;
+                    ball.vy = 0;
+                    
+                    // Оновлюємо кидок для прикладу
+                    document.getElementById('throw-val').innerText = 2;
+                }
+            }
+
+            // 3. Малюємо кеглі (білі кола)
+            pins.forEach(pin => {
+                if (!pin.active) return;
+                ctx.beginPath();
+                ctx.arc(pin.x * canvas.width, pin.y * canvas.height, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.closePath();
+            });
+
+            // 4. Малюємо кулю (фіолетова як на скріншоті)
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#a855f7';
+            ctx.fill();
+            ctx.strokeStyle = '#7e22ce';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.closePath();
+
+            requestAnimationFrame(update);
+        }
+
+        // Запуск гри
+        update();
     </script>
 </body>
 </html>
