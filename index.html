@@ -33,7 +33,7 @@
             display: flex;
             flex-direction: column;
             background: rgba(28, 40, 51, 0.9);
-            padding: 10px 15px;
+            padding: 8px 15px;
             border-radius: 8px;
             width: 100%;
             max-width: 400px;
@@ -49,27 +49,28 @@
             justify-content: space-between;
         }
 
-        #high-score-container {
-            text-align: center;
-            color: #f1c40f;
-            font-weight: bold;
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
             border-top: 1px dashed #34495e;
             padding-top: 4px;
             font-size: 13px;
         }
 
+        #high-score-container { color: #f1c40f; font-weight: bold; }
+        #coins-container { color: #2ecc71; font-weight: bold; }
+
         #canvas-container {
             position: relative;
             width: 100%;
             max-width: 400px;
-            height: 55vh;
+            height: 52vh;
             border: 3px solid #2c3e50;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 10px 25px rgba(0,0,0,0.7);
         }
 
-        /* Контейнер для шкал */
         #power-bar-container {
             position: absolute;
             left: 15px;
@@ -91,19 +92,74 @@
             transition: height 0.05s linear;
         }
 
+        /* Стилі Магазину */
+        #shop-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(13, 19, 26, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 100;
+        }
+
+        #shop-overlay h2 { color: #f39c12; margin-top: 0; margin-bottom: 15px; }
+
+        .shop-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .shop-item {
+            background: #1c2833;
+            border: 2px solid #34495e;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .shop-item.selected { border-color: #2ecc71; background: #143d24; }
+        .shop-item.owned { border-color: #f39c12; }
+
+        .ball-preview {
+            width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 8px;
+            box-shadow: inset -5px -5px 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .item-name { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
+        .item-price { font-size: 12px; color: #2ecc71; font-weight: bold; }
+
+        #close-shop-btn {
+            background: #34495e; color: white; border: none; padding: 10px 20px;
+            border-radius: 5px; font-weight: bold; cursor: pointer; width: auto;
+        }
+
+        #open-shop-btn {
+            background: #1c2833; border: 1px solid #f39c12; color: #f39c12;
+            padding: 6px 12px; font-size: 13px; border-radius: 5px; cursor: pointer;
+            font-weight: bold; margin-bottom: 6px; -webkit-tap-highlight-color: transparent;
+        }
+
         #controls {
             width: 100%;
             max-width: 400px;
             text-align: center;
-            margin-top: 10px;
+            margin-top: 6px;
             z-index: 10;
         }
 
         .status-msg {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #f1c40f;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             height: 20px;
             text-shadow: 0 1px 2px #000;
         }
@@ -113,8 +169,8 @@
             color: white;
             border: none;
             width: 100%;
-            padding: 15px;
-            font-size: 18px;
+            padding: 14px;
+            font-size: 17px;
             font-weight: bold;
             border-radius: 10px;
             cursor: pointer;
@@ -130,15 +186,7 @@
             box-shadow: 0 4px 10px rgba(231, 76, 60, 0.4);
         }
 
-        button:active {
-            transform: scale(0.98);
-        }
-
-        button:disabled {
-            background: #7f8c8d;
-            box-shadow: none;
-            transform: none;
-        }
+        button:disabled { background: #7f8c8d; box-shadow: none; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -152,12 +200,25 @@
             <div>Кидок: <span id="roll-val">1</span></div>
             <div>Очки: <span id="score-val">0</span></div>
         </div>
-        <div id="high-score-container">⭐ Мій рекорд: <span id="high-score-val">0</span></div>
+        <div class="stats-row">
+            <div id="high-score-container">⭐ Рекорд: <span id="high-score-val">0</span></div>
+            <div id="coins-container">Баланс: <span id="coins-val">0</span> UA</div>
+        </div>
     </div>
 
+    <button id="open-shop-btn">🛒 МАГАЗИН КУЛЬ</button>
+
     <div id="canvas-container">
+        <!-- Шкала сили -->
         <div id="power-bar-container">
             <div id="power-bar-fill"></div>
+        </div>
+
+        <!-- Вікно магазину всередині канвасу -->
+        <div id="shop-overlay" style="display: none;">
+            <h2>Магазин куль</h2>
+            <div class="shop-grid" id="shop-grid"></div>
+            <button id="close-shop-btn">Назад до гри</button>
         </div>
     </div>
 
@@ -172,21 +233,29 @@
         let totalScore = 0;
         let pinsLeft = 10;
         let rolls = [];
-        let highScore = localStorage.getItem('bowling_high_score') || 0;
 
-        let gameState = 'aiming'; // aiming, power, rolling, calculating
-        
+        // Економіка та збереження
+        let highScore = localStorage.getItem('bowling_high_score') || 0;
+        let coins = parseInt(localStorage.getItem('bowling_coins')) || 0;
+        let ownedBalls = JSON.parse(localStorage.getItem('bowling_owned_balls')) || ['classic'];
+        let currentBallSkin = localStorage.getItem('bowling_current_ball') || 'classic';
+
+        const ballSkins = {
+            classic: { name: 'Класична 7', price: 0, color: '#8e44ad', stripe: '#f1c40f', text: '7' },
+            lime: { name: 'Неоновий Лайм', price: 50, color: '#2ecc71', stripe: '#ffffff', text: '$' },
+            fire: { name: 'Магма Вогонь', price: 100, color: '#e74c3c', stripe: '#2c3e50', text: '🔥' },
+            ua: { name: 'Патріотична UA', price: 150, color: '#2980b9', stripe: '#f1c40f', text: 'UA' }
+        };
+
+        let gameState = 'aiming'; 
         let angle = 0;
         let angleDirection = 1;
         let ballVelocityX = 0;
         let ballVelocityZ = 0;
-
-        // Змінні для сили
         let powerValue = 0;
         let powerDirection = 1;
 
-        let scene, camera, renderer;
-        let ball, lane, aimerLine;
+        let scene, camera, renderer, ball, lane, aimerLine, ballMaterial;
         let pins = [];
         const pinPositions = [
             {x: 0, z: -15}, 
@@ -200,148 +269,71 @@
         const statusText = document.getElementById('status-text');
         const powerContainer = document.getElementById('power-bar-container');
         const powerFill = document.getElementById('power-bar-fill');
+        const shopOverlay = document.getElementById('shop-overlay');
 
         document.getElementById('high-score-val').innerText = highScore;
+        document.getElementById('coins-val').innerText = coins;
 
-        // Звуковий рушій
         let audioCtx = null;
         let rollSoundNode = null;
 
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-        }
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
 
         function playRollSound() {
             initAudio();
             const bufferSize = audioCtx.sampleRate * 2;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
-            }
-
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
             const noise = audioCtx.createBufferSource();
-            noise.buffer = buffer;
-            noise.loop = true;
-
+            noise.buffer = buffer; noise.loop = true;
             const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(130, audioCtx.currentTime);
-
-            const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-
-            noise.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            noise.start();
-            rollSoundNode = { source: noise, gain: gain };
+            filter.type = 'lowpass'; filter.frequency.setValueAtTime(130, audioCtx.currentTime);
+            const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            noise.start(); rollSoundNode = { source: noise, gain: gain };
         }
 
-        function stopRollSound() {
-            if (rollSoundNode) {
-                try {
-                    rollSoundNode.source.stop();
-                } catch(e){}
-                rollSoundNode = null;
-            }
-        }
+        function stopRollSound() { if (rollSoundNode) { try { rollSoundNode.source.stop(); } catch(e){} rollSoundNode = null; } }
 
         function playHitSound() {
             initAudio();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(280, audioCtx.currentTime);
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(280, audioCtx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.4);
-
-            gain.gain.setValueAtTime(0.7, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
-
-            const osc2 = audioCtx.createOscillator();
-            const gain2 = audioCtx.createGain();
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(750, audioCtx.currentTime);
-            gain2.gain.setValueAtTime(0.25, audioCtx.currentTime);
-            gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-            osc2.connect(gain2);
-            gain2.connect(audioCtx.destination);
-            osc2.start();
-            osc2.stop(audioCtx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.7, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.5);
         }
 
-        // Генерація красивої текстури дерева за допомогою HTML Canvas
         function createWoodTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 1024;
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 1024;
             const ctx = canvas.getContext('2d');
-
-            // Основа дерева
-            ctx.fillStyle = '#e67e22';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Малюємо дошки (паркет)
+            ctx.fillStyle = '#e67e22'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#d35400';
-            for (let i = 0; i < canvas.width; i += 32) {
-                ctx.fillRect(i, 0, 2, canvas.height);
-            }
-
-            // Текстурні волокна дерева
-            ctx.strokeStyle = 'rgba(139, 69, 19, 0.15)';
-            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 32) ctx.fillRect(i, 0, 2, canvas.height);
+            ctx.strokeStyle = 'rgba(139, 69, 19, 0.15)'; ctx.lineWidth = 1;
             for (let j = 0; j < canvas.height; j += 4) {
-                ctx.beginPath();
-                ctx.moveTo(0, j + Math.sin(j*0.05)*5);
-                ctx.lineTo(canvas.width, j + Math.sin(j*0.05)*5);
-                ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, j + Math.sin(j*0.05)*5); ctx.lineTo(canvas.width, j + Math.sin(j*0.05)*5); ctx.stroke();
             }
-
             const texture = new THREE.CanvasTexture(canvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(1, 1);
             return texture;
         }
 
-        // Текстура для більярдного ефекту кулі (глянець та смужка)
-        function createBallTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 256;
+        function createBallTexture(skinKey) {
+            const cfg = ballSkins[skinKey];
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 256;
             const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = '#8e44ad'; // Фіолетова основа кулі
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.fillStyle = '#f1c40f'; // Золотиста смуга по центру для відстеження обертання
-            ctx.fillRect(0, 100, canvas.width, 56);
-
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(256, 128, 40, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = '#000000';
-            ctx.font = 'bold 45px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('7', 256, 128);
-
+            ctx.fillStyle = cfg.color; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = cfg.stripe; ctx.fillRect(0, 100, canvas.width, 56);
+            ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(256, 128, 40, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#000000'; ctx.font = 'bold 40px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(cfg.text, 256, 128);
             return new THREE.CanvasTexture(canvas);
         }
 
         init3D();
         animate();
+        renderShop();
 
         function init3D() {
             scene = new THREE.Scene();
@@ -357,88 +349,44 @@
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
             const spotLight = new THREE.SpotLight(0xffffff, 1);
-            spotLight.position.set(0, 12, 4);
-            spotLight.castShadow = true;
+            spotLight.position.set(0, 12, 4); spotLight.castShadow = true;
             scene.add(spotLight);
 
-            // Доріжка з текстурою дерева
-            const laneGeo = new THREE.BoxGeometry(3.5, 0.1, 25);
-            const laneMat = new THREE.MeshStandardMaterial({ 
-                map: createWoodTexture(),
-                roughness: 0.1, 
-                metalness: 0.1 
-            });
-            lane = new THREE.Mesh(laneGeo, laneMat);
-            lane.position.set(0, -0.05, -7.5);
-            lane.receiveShadow = true;
+            lane = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.1, 25), new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.1, metalness: 0.1 }));
+            lane.position.set(0, -0.05, -7.5); lane.receiveShadow = true;
             scene.add(lane);
 
-            // Бортики
-            const wallGeo = new THREE.BoxGeometry(0.15, 0.4, 25);
             const wallMat = new THREE.MeshStandardMaterial({ color: 0x1f2d3d, roughness: 0.5 });
-            const leftWall = new THREE.Mesh(wallGeo, wallMat);
-            leftWall.position.set(-1.82, 0.15, -7.5);
-            scene.add(leftWall);
-            const rightWall = leftWall.clone();
-            rightWall.position.x = 1.82;
-            scene.add(rightWall);
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.4, 25), wallMat);
+            leftWall.position.set(-1.82, 0.15, -7.5); scene.add(leftWall);
+            const rightWall = leftWall.clone(); rightWall.position.x = 1.82; scene.add(rightWall);
 
-            // Куля зі стильною текстурою
-            const ballGeo = new THREE.SphereGeometry(0.25, 32, 32);
-            const ballMat = new THREE.MeshStandardMaterial({ 
-                map: createBallTexture(),
-                roughness: 0.05, 
-                metalness: 0.2 
-            });
-            ball = new THREE.Mesh(ballGeo, ballMat);
-            ball.position.set(0, 0.25, 3);
-            ball.castShadow = true;
+            ballMaterial = new THREE.MeshStandardMaterial({ map: createBallTexture(currentBallSkin), roughness: 0.05, metalness: 0.2 });
+            ball = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), ballMaterial);
+            ball.position.set(0, 0.25, 3); ball.castShadow = true;
             scene.add(ball);
 
-            // Яскрава лінія прицілу
             const points = [new THREE.Vector3(0, 0.06, 3), new THREE.Vector3(0, 0.06, -1)];
-            const aimerGeo = new THREE.BufferGeometry().setFromPoints(points);
-            const aimerMat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 5 }); 
-            aimerLine = new THREE.Line(aimerGeo, aimerMat);
+            aimerLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 5 }));
             scene.add(aimerLine);
 
             createPins();
         }
 
         function createPins() {
-            pins.forEach(p => scene.remove(p.mesh));
-            pins = [];
-
+            pins.forEach(p => scene.remove(p.mesh)); pins = [];
             const pinMat = new THREE.MeshStandardMaterial({ color: 0xf5f6fa, roughness: 0.2 });
             const stripeMat = new THREE.MeshBasicMaterial({ color: 0xd63031 });
 
             pinPositions.forEach((pos) => {
                 const pinGroup = new THREE.Group();
-
-                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.5, 16), pinMat);
-                body.position.y = 0.25;
-                body.castShadow = true;
-                pinGroup.add(body);
-
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), pinMat);
-                head.position.y = 0.53;
-                pinGroup.add(head);
-
-                const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.083, 0.083, 0.04, 16), stripeMat);
-                stripe.position.y = 0.42;
-                pinGroup.add(stripe);
-
-                pinGroup.position.set(pos.x, 0, pos.z);
-                scene.add(pinGroup);
-
-                pins.push({
-                    mesh: pinGroup, active: true,
-                    vx: 0, vy: 0, vz: 0, rotX: 0, rotZ: 0
-                });
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.5, 16), pinMat); body.position.y = 0.25; body.castShadow = true; pinGroup.add(body);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), pinMat); head.position.y = 0.53; pinGroup.add(head);
+                const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.083, 0.083, 0.04, 16), stripeMat); stripe.position.y = 0.42; pinGroup.add(stripe);
+                pinGroup.position.set(pos.x, 0, pos.z); scene.add(pinGroup);
+                pins.push({ mesh: pinGroup, active: true, vx: 0, vy: 0, vz: 0, rotX: 0, rotZ: 0 });
             });
         }
 
@@ -446,139 +394,91 @@
             requestAnimationFrame(animate);
 
             if (gameState === 'aiming') {
-                angle += angleDirection * 0.011; 
-                if (angle > 0.55 || angle < -0.55) {
-                    angleDirection *= -1;
-                }
-                const targetX = Math.sin(angle) * 4;
-                const targetZ = 3 - Math.cos(angle) * 4;
-                
+                angle += angleDirection * 0.011;
+                if (angle > 0.55 || angle < -0.55) angleDirection *= -1;
+                const targetX = Math.sin(angle) * 4; const targetZ = 3 - Math.cos(angle) * 4;
                 const positions = aimerLine.geometry.attributes.position.array;
-                positions[3] = targetX;
-                positions[5] = targetZ;
+                positions[3] = targetX; positions[5] = targetZ;
                 aimerLine.geometry.attributes.position.needsUpdate = true;
             }
 
             if (gameState === 'power') {
                 powerValue += powerDirection * 2.5;
-                if (powerValue > 100 || powerValue < 0) {
-                    powerDirection *= -1;
-                }
+                if (powerValue > 100 || powerValue < 0) powerDirection *= -1;
                 powerFill.style.height = powerValue + '%';
             }
 
             if (gameState === 'rolling') {
-                ball.position.x += ballVelocityX;
-                ball.position.z += ballVelocityZ;
-                
-                // Куля красиво крутиться у напрямку руху
-                ball.rotation.x -= 0.18;
-                ball.rotation.y += ballVelocityX * 0.5;
+                ball.position.x += ballVelocityX; ball.position.z += ballVelocityZ;
+                ball.rotation.x -= 0.18; ball.rotation.y += ballVelocityX * 0.5;
 
                 let playHit = false;
                 pins.forEach(pin => {
                     if (pin.active) {
-                        const dist = ball.position.distanceTo(pin.mesh.position);
-                        if (dist < 0.42) {
-                            pin.active = false;
-                            pin.vz = ballVelocityZ * 0.85;
-                            pin.vx = (pin.mesh.position.x - ball.position.x) * 0.6;
-                            pin.vy = 0.18;
-                            pin.rotX = Math.random() * 0.25;
-                            pin.rotZ = (Math.random() - 0.5) * 0.25;
+                        if (ball.position.distanceTo(pin.mesh.position) < 0.42) {
+                            pin.active = false; pin.vz = ballVelocityZ * 0.85;
+                            pin.vx = (pin.mesh.position.x - ball.position.x) * 0.6; pin.vy = 0.18;
+                            pin.rotX = Math.random() * 0.25; pin.rotZ = (Math.random() - 0.5) * 0.25;
                             playHit = true;
                         }
                     }
                 });
-
-                if (playHit) {
-                    playHitSound();
-                }
-
-                if (ball.position.z < -20) {
-                    gameState = 'calculating';
-                    stopRollSound();
-                    calculateFrameResult();
-                }
+                if (playHit) playHitSound();
+                if (ball.position.z < -20) { gameState = 'calculating'; stopRollSound(); calculateFrameResult(); }
             }
 
             pins.forEach(pin => {
                 if (!pin.active && Math.abs(pin.mesh.position.z) < 25) {
-                    pin.mesh.position.x += pin.vx;
-                    pin.mesh.position.y += pin.vy;
-                    pin.mesh.position.z += pin.vz;
-                    
-                    if (pin.mesh.position.y > 0) {
-                        pin.vy -= 0.012;
-                    } else {
-                        pin.mesh.position.y = 0;
-                        pin.vx *= 0.85;
-                        pin.vz *= 0.85;
-                    }
-                    pin.mesh.rotation.x += pin.rotX;
-                    pin.mesh.rotation.z += pin.rotZ;
+                    pin.mesh.position.x += pin.vx; pin.mesh.position.y += pin.vy; pin.mesh.position.z += pin.vz;
+                    if (pin.mesh.position.y > 0) pin.vy -= 0.012; else { pin.mesh.position.y = 0; pin.vx *= 0.85; pin.vz *= 0.85; }
+                    pin.mesh.rotation.x += pin.rotX; pin.mesh.rotation.z += pin.rotZ;
                 }
             });
-
             renderer.render(scene, camera);
         }
 
         actionBtn.addEventListener('click', () => {
-            initAudio(); 
-
+            initAudio();
             if (gameState === 'aiming') {
-                gameState = 'power';
-                powerValue = 0;
-                powerDirection = 1;
+                gameState = 'power'; powerValue = 0; powerDirection = 1;
                 powerContainer.style.display = 'flex';
-                actionBtn.innerText = "КИДОК!";
-                actionBtn.classList.add('ready-to-shoot');
+                actionBtn.innerText = "КИДОК!"; actionBtn.classList.add('ready-to-shoot');
                 statusText.innerText = "Впіймай максимальну силу кидка!";
             } 
             else if (gameState === 'power') {
-                gameState = 'rolling';
-                actionBtn.disabled = true;
-                actionBtn.classList.remove('ready-to-shoot');
-                aimerLine.visible = false;
-                powerContainer.style.display = 'none';
+                gameState = 'rolling'; actionBtn.disabled = true; actionBtn.classList.remove('ready-to-shoot');
+                aimerLine.visible = false; powerContainer.style.display = 'none';
                 statusText.innerText = "Куля котиться до кеглів...";
-
                 playRollSound();
-
-                // Швидкість тепер залежить від зафіксованої сили (мінімум 0.15, максимум 0.42)
                 const speed = 0.15 + (powerValue / 100) * 0.27;
-                ballVelocityX = Math.sin(angle) * speed;
-                ballVelocityZ = -Math.cos(angle) * speed;
+                ballVelocityX = Math.sin(angle) * speed; ballVelocityZ = -Math.cos(angle) * speed;
             }
         });
 
         function calculateFrameResult() {
             let hitCount = 0;
-            pins.forEach(pin => {
-                if (!pin.active && pin.mesh.visible) {
-                    pin.mesh.visible = false;
-                    hitCount++;
-                }
-            });
+            pins.forEach(pin => { if (!pin.active && pin.mesh.visible) { pin.mesh.visible = false; hitCount++; } });
+            pinsLeft -= hitCount; rolls.push(hitCount);
+            
+            // Нарахування UA за збиті кеглі
+            addCoins(hitCount);
 
-            pinsLeft -= hitCount;
-            rolls.push(hitCount);
             updateScoreDisplay();
 
             if (currentRoll === 1) {
                 if (pinsLeft === 0) {
-                    statusText.innerText = "💥 STRIIIIKE! 💥";
-                    rolls.push(0);
-                    endFrame();
+                    statusText.innerText = "💥 STRIIIIKE! (+10 UA) 💥";
+                    addCoins(10); // Бонус за страйк
+                    rolls.push(0); endFrame();
                 } else {
                     statusText.innerText = `Збито: ${hitCount}. Другий кидок!`;
-                    currentRoll = 2;
-                    document.getElementById('roll-val').innerText = currentRoll;
+                    currentRoll = 2; document.getElementById('roll-val').innerText = currentRoll;
                     resetBallOnly();
                 }
             } else {
                 if (pinsLeft === 0) {
-                    statusText.innerText = "✨ SPARE! ✨";
+                    statusText.innerText = "✨ SPARE! (+5 UA) ✨";
+                    addCoins(5); // Бонус за спейр
                 } else {
                     statusText.innerText = `Результат фрейму: ${10 - pinsLeft} кеглів`;
                 }
@@ -586,44 +486,29 @@
             }
         }
 
-        function updateScoreDisplay() {
-            let score = 0;
-            let rollIndex = 0;
+        function addCoins(amount) {
+            if (amount <= 0) return;
+            coins += amount;
+            localStorage.setItem('bowling_coins', coins);
+            document.getElementById('coins-val').innerText = coins;
+        }
 
+        function updateScoreDisplay() {
+            let score = 0; let rollIndex = 0;
             for (let frame = 0; frame < currentFrame; frame++) {
                 if (rollIndex >= rolls.length) break;
-
-                if (rolls[rollIndex] === 10) { 
-                    score += 10 + (rolls[rollIndex + 1] || 0) + (rolls[rollIndex + 2] || 0);
-                    rollIndex += 2;
-                } else if ((rolls[rollIndex] + (rolls[rollIndex + 1] || 0)) === 10) { 
-                    score += 10 + (rolls[rollIndex + 2] || 0);
-                    rollIndex += 2;
-                } else {
-                    score += (rolls[rollIndex] || 0) + (rolls[rollIndex + 1] || 0);
-                    rollIndex += 2;
-                }
+                if (rolls[rollIndex] === 10) { score += 10 + (rolls[rollIndex + 1] || 0) + (rolls[rollIndex + 2] || 0); rollIndex += 2; }
+                else if ((rolls[rollIndex] + (rolls[rollIndex + 1] || 0)) === 10) { score += 10 + (rolls[rollIndex + 2] || 0); rollIndex += 2; }
+                else { score += (rolls[rollIndex] || 0) + (rolls[rollIndex + 1] || 0); rollIndex += 2; }
             }
-            totalScore = score;
-            document.getElementById('score-val').innerText = totalScore;
-
-            // Оновлення найкращого рекорду в реальному часі
-            if (totalScore > highScore) {
-                highScore = totalScore;
-                localStorage.setItem('bowling_high_score', highScore);
-                document.getElementById('high-score-val').innerText = highScore;
-            }
+            totalScore = score; document.getElementById('score-val').innerText = totalScore;
+            if (totalScore > highScore) { highScore = totalScore; localStorage.setItem('bowling_high_score', highScore); document.getElementById('high-score-val').innerText = highScore; }
         }
 
         function resetBallOnly() {
             setTimeout(() => {
-                ball.position.set(0, 0.25, 3);
-                ball.rotation.set(0, 0, 0);
-                aimerLine.visible = true;
-                
-                gameState = 'aiming';
-                actionBtn.innerText = "Зафіксувати приціл";
-                actionBtn.disabled = false;
+                ball.position.set(0, 0.25, 3); ball.rotation.set(0, 0, 0); aimerLine.visible = true;
+                gameState = 'aiming'; actionBtn.innerText = "Зафіксувати приціл"; actionBtn.disabled = false;
                 statusText.innerText = "Оберіть напрямок другого кидка!";
             }, 1000);
         }
@@ -631,36 +516,79 @@
         function endFrame() {
             setTimeout(() => {
                 currentFrame++;
-                
                 if (currentFrame > 10) {
-                    statusText.innerText = `Гру закінчено! Твій рахунок: ${totalScore}`;
-                    actionBtn.innerText = "ЗІГРАТИ ЗНОВУ";
-                    actionBtn.disabled = false;
-                    actionBtn.onclick = () => { location.reload(); };
-                    return;
+                    statusText.innerText = `Гру закінчено! Рахунок: ${totalScore}`;
+                    actionBtn.innerText = "ЗІГРАТИ ЗНОВУ"; actionBtn.disabled = false;
+                    actionBtn.onclick = () => { location.reload(); }; return;
                 }
-
-                currentRoll = 1;
-                pinsLeft = 10;
-                
-                document.getElementById('frame-val').innerText = currentFrame;
-                document.getElementById('roll-val').innerText = currentRoll;
-                
-                ball.position.set(0, 0.25, 3);
-                ball.rotation.set(0, 0, 0);
-                createPins();
-                
-                aimerLine.visible = true;
-                gameState = 'aiming';
-                actionBtn.innerText = "Зафіксувати приціл";
-                actionBtn.disabled = false;
+                currentRoll = 1; pinsLeft = 10;
+                document.getElementById('frame-val').innerText = currentFrame; document.getElementById('roll-val').innerText = currentRoll;
+                ball.position.set(0, 0.25, 3); ball.rotation.set(0, 0, 0); createPins();
+                aimerLine.visible = true; gameState = 'aiming';
+                actionBtn.innerText = "Зафіксувати приціл"; actionBtn.disabled = false;
                 statusText.innerText = "Оберіть напрямок кидка!";
             }, 1500);
         }
 
+        // Рендеринг елементів магазину
+        function renderShop() {
+            const grid = document.getElementById('shop-grid');
+            grid.innerHTML = '';
+            
+            Object.keys(ballSkins).forEach(key => {
+                const item = ballSkins[key];
+                const isOwned = ownedBalls.includes(key);
+                const isSelected = currentBallSkin === key;
+
+                const div = document.createElement('div');
+                div.className = `shop-item ${isSelected ? 'selected' : ''} ${isOwned ? 'owned' : ''}`;
+                
+                let label = isSelected ? 'Обрано' : (isOwned ? 'В наявності' : `${item.price} UA`);
+
+                div.innerHTML = `
+                    <div class="ball-preview" style="background: ${item.color};"></div>
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-price" style="color: ${isOwned ? '#f39c12' : '#2ecc71'}">${label}</div>
+                `;
+
+                div.addEventListener('click', () => {
+                    if (isOwned) {
+                        currentBallSkin = key;
+                        localStorage.setItem('bowling_current_ball', key);
+                        ballMaterial.map = createBallTexture(key);
+                        ballMaterial.needsUpdate = true;
+                        renderShop();
+                    } else if (coins >= item.price) {
+                        coins -= item.price;
+                        ownedBalls.push(key);
+                        currentBallSkin = key;
+                        localStorage.setItem('bowling_coins', coins);
+                        localStorage.setItem('bowling_owned_balls', JSON.stringify(ownedBalls));
+                        localStorage.setItem('bowling_current_ball', key);
+                        document.getElementById('coins-val').innerText = coins;
+                        ballMaterial.map = createBallTexture(key);
+                        ballMaterial.needsUpdate = true;
+                        renderShop();
+                    } else {
+                        alert('Недостатньо UA! Продовжуй грати та збивати кеглі.');
+                    }
+                });
+
+                grid.appendChild(div);
+            });
+        }
+
+        // Кнопки магазину
+        document.getElementById('open-shop-btn').addEventListener('click', () => {
+            if(gameState === 'aiming' || gameState === 'ready') {
+                shopOverlay.style.display = 'flex';
+                renderShop();
+            }
+        });
+        document.getElementById('close-shop-btn').addEventListener('click', () => { shopOverlay.style.display = 'none'; });
+
         window.addEventListener('resize', () => {
-            camera.aspect = container.clientWidth / container.clientHeight;
-            camera.updateProjectionMatrix();
+            camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
         });
     </script>
