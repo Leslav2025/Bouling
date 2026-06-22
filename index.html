@@ -31,27 +31,64 @@
 
         #scoreboard {
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             background: rgba(28, 40, 51, 0.9);
             padding: 10px 15px;
             border-radius: 8px;
             width: 100%;
             max-width: 400px;
-            font-size: 15px;
+            font-size: 14px;
             border: 1px solid #2c3e50;
             margin-bottom: 8px;
             z-index: 10;
+            gap: 5px;
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #high-score-container {
+            text-align: center;
+            color: #f1c40f;
+            font-weight: bold;
+            border-top: 1px dashed #34495e;
+            padding-top: 4px;
+            font-size: 13px;
         }
 
         #canvas-container {
             position: relative;
             width: 100%;
             max-width: 400px;
-            height: 60vh;
+            height: 55vh;
             border: 3px solid #2c3e50;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+        }
+
+        /* Контейнер для шкал */
+        #power-bar-container {
+            position: absolute;
+            left: 15px;
+            bottom: 20px;
+            width: 24px;
+            height: 140px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid #fff;
+            border-radius: 5px;
+            display: none;
+            flex-direction: column-reverse;
+            overflow: hidden;
+        }
+
+        #power-bar-fill {
+            width: 100%;
+            height: 0%;
+            background: linear-gradient(to top, #2ecc71, #f1c40f, #e74c3c);
+            transition: height 0.05s linear;
         }
 
         #controls {
@@ -89,8 +126,8 @@
         }
 
         button.ready-to-shoot {
-            background: linear-gradient(135deg, #27ae60, #219653);
-            box-shadow: 0 4px 10px rgba(39, 174, 96, 0.4);
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            box-shadow: 0 4px 10px rgba(231, 76, 60, 0.4);
         }
 
         button:active {
@@ -110,12 +147,19 @@
     <h1>3D Bowling Club</h1>
 
     <div id="scoreboard">
-        <div>Фрейм: <span id="frame-val">1</span>/10</div>
-        <div>Кидок: <span id="roll-val">1</span></div>
-        <div>Очки: <span id="score-val">0</span></div>
+        <div class="score-row">
+            <div>Фрейм: <span id="frame-val">1</span>/10</div>
+            <div>Кидок: <span id="roll-val">1</span></div>
+            <div>Очки: <span id="score-val">0</span></div>
+        </div>
+        <div id="high-score-container">⭐ Мій рекорд: <span id="high-score-val">0</span></div>
     </div>
 
-    <div id="canvas-container"></div>
+    <div id="canvas-container">
+        <div id="power-bar-container">
+            <div id="power-bar-fill"></div>
+        </div>
+    </div>
 
     <div id="controls">
         <div class="status-msg" id="status-text">Оберіть напрямок кидка!</div>
@@ -128,13 +172,18 @@
         let totalScore = 0;
         let pinsLeft = 10;
         let rolls = [];
+        let highScore = localStorage.getItem('bowling_high_score') || 0;
 
-        let gameState = 'aiming'; 
+        let gameState = 'aiming'; // aiming, power, rolling, calculating
         
         let angle = 0;
         let angleDirection = 1;
         let ballVelocityX = 0;
         let ballVelocityZ = 0;
+
+        // Змінні для сили
+        let powerValue = 0;
+        let powerDirection = 1;
 
         let scene, camera, renderer;
         let ball, lane, aimerLine;
@@ -149,6 +198,10 @@
         const container = document.getElementById('canvas-container');
         const actionBtn = document.getElementById('action-btn');
         const statusText = document.getElementById('status-text');
+        const powerContainer = document.getElementById('power-bar-container');
+        const powerFill = document.getElementById('power-bar-fill');
+
+        document.getElementById('high-score-val').innerText = highScore;
 
         // Звуковий рушій
         let audioCtx = null;
@@ -226,6 +279,67 @@
             osc2.stop(audioCtx.currentTime + 0.3);
         }
 
+        // Генерація красивої текстури дерева за допомогою HTML Canvas
+        function createWoodTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // Основа дерева
+            ctx.fillStyle = '#e67e22';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Малюємо дошки (паркет)
+            ctx.fillStyle = '#d35400';
+            for (let i = 0; i < canvas.width; i += 32) {
+                ctx.fillRect(i, 0, 2, canvas.height);
+            }
+
+            // Текстурні волокна дерева
+            ctx.strokeStyle = 'rgba(139, 69, 19, 0.15)';
+            ctx.lineWidth = 1;
+            for (let j = 0; j < canvas.height; j += 4) {
+                ctx.beginPath();
+                ctx.moveTo(0, j + Math.sin(j*0.05)*5);
+                ctx.lineTo(canvas.width, j + Math.sin(j*0.05)*5);
+                ctx.stroke();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            return texture;
+        }
+
+        // Текстура для більярдного ефекту кулі (глянець та смужка)
+        function createBallTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#8e44ad'; // Фіолетова основа кулі
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#f1c40f'; // Золотиста смуга по центру для відстеження обертання
+            ctx.fillRect(0, 100, canvas.width, 56);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(256, 128, 40, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 45px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('7', 256, 128);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
         init3D();
         animate();
 
@@ -235,40 +349,51 @@
             scene.fog = new THREE.FogExp2(0x0d131a, 0.05);
 
             camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
-            camera.position.set(0, 2.5, 5);
-            camera.lookAt(0, 0.5, -10);
+            camera.position.set(0, 2.3, 5);
+            camera.lookAt(0, 0.4, -10);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
-            const spotLight = new THREE.SpotLight(0xffeaa7, 1.2);
-            spotLight.position.set(0, 10, 2);
+            const spotLight = new THREE.SpotLight(0xffffff, 1);
+            spotLight.position.set(0, 12, 4);
             spotLight.castShadow = true;
             scene.add(spotLight);
 
+            // Доріжка з текстурою дерева
             const laneGeo = new THREE.BoxGeometry(3.5, 0.1, 25);
-            const laneMat = new THREE.MeshStandardMaterial({ color: 0xd35400, roughness: 0.15, metalness: 0.1 });
+            const laneMat = new THREE.MeshStandardMaterial({ 
+                map: createWoodTexture(),
+                roughness: 0.1, 
+                metalness: 0.1 
+            });
             lane = new THREE.Mesh(laneGeo, laneMat);
             lane.position.set(0, -0.05, -7.5);
             lane.receiveShadow = true;
             scene.add(lane);
 
-            const wallGeo = new THREE.BoxGeometry(0.2, 0.5, 25);
-            const wallMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+            // Бортики
+            const wallGeo = new THREE.BoxGeometry(0.15, 0.4, 25);
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x1f2d3d, roughness: 0.5 });
             const leftWall = new THREE.Mesh(wallGeo, wallMat);
-            leftWall.position.set(-1.85, 0.2, -7.5);
+            leftWall.position.set(-1.82, 0.15, -7.5);
             scene.add(leftWall);
             const rightWall = leftWall.clone();
-            rightWall.position.x = 1.85;
+            rightWall.position.x = 1.82;
             scene.add(rightWall);
 
+            // Куля зі стильною текстурою
             const ballGeo = new THREE.SphereGeometry(0.25, 32, 32);
-            const ballMat = new THREE.MeshStandardMaterial({ color: 0x9b59b6, roughness: 0.2, metalness: 0.5 });
+            const ballMat = new THREE.MeshStandardMaterial({ 
+                map: createBallTexture(),
+                roughness: 0.05, 
+                metalness: 0.2 
+            });
             ball = new THREE.Mesh(ballGeo, ballMat);
             ball.position.set(0, 0.25, 3);
             ball.castShadow = true;
@@ -288,8 +413,8 @@
             pins.forEach(p => scene.remove(p.mesh));
             pins = [];
 
-            const pinMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-            const stripeMat = new THREE.MeshBasicMaterial({ color: 0xe74c3c });
+            const pinMat = new THREE.MeshStandardMaterial({ color: 0xf5f6fa, roughness: 0.2 });
+            const stripeMat = new THREE.MeshBasicMaterial({ color: 0xd63031 });
 
             pinPositions.forEach((pos) => {
                 const pinGroup = new THREE.Group();
@@ -303,7 +428,7 @@
                 head.position.y = 0.53;
                 pinGroup.add(head);
 
-                const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.04, 16), stripeMat);
+                const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.083, 0.083, 0.04, 16), stripeMat);
                 stripe.position.y = 0.42;
                 pinGroup.add(stripe);
 
@@ -321,7 +446,6 @@
             requestAnimationFrame(animate);
 
             if (gameState === 'aiming') {
-                // Зменшено крок з 0.03 до 0.011 для плавного та спокійного руху лінії
                 angle += angleDirection * 0.011; 
                 if (angle > 0.55 || angle < -0.55) {
                     angleDirection *= -1;
@@ -335,10 +459,21 @@
                 aimerLine.geometry.attributes.position.needsUpdate = true;
             }
 
+            if (gameState === 'power') {
+                powerValue += powerDirection * 2.5;
+                if (powerValue > 100 || powerValue < 0) {
+                    powerDirection *= -1;
+                }
+                powerFill.style.height = powerValue + '%';
+            }
+
             if (gameState === 'rolling') {
                 ball.position.x += ballVelocityX;
                 ball.position.z += ballVelocityZ;
+                
+                // Куля красиво крутиться у напрямку руху
                 ball.rotation.x -= 0.18;
+                ball.rotation.y += ballVelocityX * 0.5;
 
                 let playHit = false;
                 pins.forEach(pin => {
@@ -392,21 +527,26 @@
             initAudio(); 
 
             if (gameState === 'aiming') {
-                gameState = 'ready';
-                actionBtn.innerText = "Кидок!";
+                gameState = 'power';
+                powerValue = 0;
+                powerDirection = 1;
+                powerContainer.style.display = 'flex';
+                actionBtn.innerText = "КИДОК!";
                 actionBtn.classList.add('ready-to-shoot');
-                statusText.innerText = "Напрямок зафіксовано. Запускай кулю!";
+                statusText.innerText = "Впіймай максимальну силу кидка!";
             } 
-            else if (gameState === 'ready') {
+            else if (gameState === 'power') {
                 gameState = 'rolling';
                 actionBtn.disabled = true;
                 actionBtn.classList.remove('ready-to-shoot');
                 aimerLine.visible = false;
+                powerContainer.style.display = 'none';
                 statusText.innerText = "Куля котиться до кеглів...";
 
                 playRollSound();
 
-                const speed = 0.38;
+                // Швидкість тепер залежить від зафіксованої сили (мінімум 0.15, максимум 0.42)
+                const speed = 0.15 + (powerValue / 100) * 0.27;
                 ballVelocityX = Math.sin(angle) * speed;
                 ballVelocityZ = -Math.cos(angle) * speed;
             }
@@ -466,11 +606,19 @@
             }
             totalScore = score;
             document.getElementById('score-val').innerText = totalScore;
+
+            // Оновлення найкращого рекорду в реальному часі
+            if (totalScore > highScore) {
+                highScore = totalScore;
+                localStorage.setItem('bowling_high_score', highScore);
+                document.getElementById('high-score-val').innerText = highScore;
+            }
         }
 
         function resetBallOnly() {
             setTimeout(() => {
                 ball.position.set(0, 0.25, 3);
+                ball.rotation.set(0, 0, 0);
                 aimerLine.visible = true;
                 
                 gameState = 'aiming';
@@ -499,6 +647,7 @@
                 document.getElementById('roll-val').innerText = currentRoll;
                 
                 ball.position.set(0, 0.25, 3);
+                ball.rotation.set(0, 0, 0);
                 createPins();
                 
                 aimerLine.visible = true;
