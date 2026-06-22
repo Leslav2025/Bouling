@@ -3,233 +3,464 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UA Боулінг Клуб</title>
+    <title>UA 3D Боулінг Клуб</title>
     <style>
         * {
             box-sizing: border-box;
             user-select: none;
-            -webkit-user-select: none;
         }
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #111827;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            overflow: hidden;
-            height: 100vh;
+            background-color: #0d131a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             display: flex;
             flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 10px;
+            min-height: 100vh;
+            overflow: hidden;
         }
 
-        /* Верхня панель (Header) */
-        .header-panel {
+        h1 {
+            color: #f39c12;
+            margin: 5px 0;
+            font-size: 22px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+        }
+
+        #scoreboard {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            background-color: #1f2937;
-            padding: 10px 20px;
+            background: rgba(28, 40, 51, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 400px;
+            font-size: 15px;
+            border: 1px solid #2c3e50;
+            margin-bottom: 8px;
+            z-index: 10;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 60vh;
+            border: 3px solid #2c3e50;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+        }
+
+        #controls {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            margin-top: 10px;
+            z-index: 10;
+        }
+
+        .status-msg {
             font-size: 16px;
             font-weight: bold;
-            border-bottom: 2px solid #374151;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        .header-title {
-            color: #f59e0b;
-            text-align: center;
-            font-size: 20px;
-            padding: 5px 0;
-            background-color: #111827;
+            color: #f1c40f;
+            margin-bottom: 8px;
+            height: 20px;
+            text-shadow: 0 1px 2px #000;
         }
 
-        /* Ігрова зона */
-        .game-container {
-            flex-grow: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            background-color: #111827;
-        }
-        canvas {
-            background-color: #1e3a8a; /* Колір бортів */
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        button {
+            background: linear-gradient(135deg, #27ae60, #219653);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(39, 174, 96, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background 0.2s, transform 0.1s;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* Підказка знизу */
-        .footer-hint {
-            text-align: center;
-            padding: 10px;
-            background-color: #1f2937;
-            color: #9ca3af;
-            font-size: 14px;
-            border-top: 1px solid #374151;
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background: #7f8c8d;
+            box-shadow: none;
+            transform: none;
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-    <div class="header-title">Bowling Club</div>
-    
-    <div class="header-panel">
-        <div>Фрейм: <span id="frame-val">7/10</span></div>
-        <div>Кидок: <span id="throw-val">1</span></div>
-        <div>Очки: <span id="score-val">5</span></div>
+    <h1>3D Bowling Club</h1>
+
+    <div id="scoreboard">
+        <div>Фрейм: <span id="frame-val">1</span>/10</div>
+        <div>Кидок: <span id="roll-val">1</span></div>
+        <div>Очки: <span id="score-val">0</span></div>
     </div>
 
-    <div class="game-container">
-        <canvas id="gameCanvas"></canvas>
-    </div>
+    <div id="canvas-container"></div>
 
-    <div class="footer-hint">Жолобни кулю пальцем вгору, щоб зробити кидок! 🎳</div>
+    <div id="controls">
+        <div class="status-msg" id="status-text">Впіймай приціл та тисни кнопку!</div>
+        <button id="shoot-btn">СТРІЛЯТИ!</button>
+    </div>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        // Ігрова логіка
+        let currentFrame = 1;
+        let currentRoll = 1;
+        let totalScore = 0;
+        let pinsLeft = 10;
+        let rolls = [];
 
-        // Налаштування адаптивності Canvas під розмір екрану
-        function resizeCanvas() {
-            const container = canvas.parentElement;
-            const size = Math.min(container.clientWidth, container.clientHeight);
-            canvas.width = size * 0.95;
-            canvas.height = size * 1.5; // Співвідношення сторін доріжки
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        // Змінні прицілювання та руху
+        let angle = 0;
+        let angleDirection = 1;
+        let isAiming = true;
+        let isRolling = false;
+        let ballVelocityX = 0;
+        let ballVelocityZ = 0;
 
-        // Параметри доріжки
-        const laneColor = '#d97706'; // Помаранчева доріжка як на скріншоті
-
-        // Позиції 10 кеглів (відносно ширини і висоти)
-        let pins = [
-            {x: 0.5, y: 0.15, active: true}, // 1-а кегля (попереду)
-            {x: 0.45, y: 0.12, active: true}, {x: 0.55, y: 0.12, active: true},
-            {x: 0.4, y: 0.09, active: true}, {x: 0.5, y: 0.09, active: true}, {x: 0.6, y: 0.09, active: true},
-            {x: 0.35, y: 0.06, active: true}, {x: 0.45, y: 0.06, active: true}, {x: 0.55, y: 0.06, active: true}, {x: 0.65, y: 0.06, active: true}
+        // 3D Сцена
+        let scene, camera, renderer;
+        let ball, lane, aimerLine;
+        let pins = [];
+        const pinPositions = [
+            {x: 0, z: -15}, // Ряд 1
+            {x: -0.4, z: -15.6}, {x: 0.4, z: -15.6}, // Ряд 2
+            {x: -0.8, z: -16.2}, {x: 0, z: -16.2}, {x: 0.4, z: -16.2}, // Ряд 3 (виправлено зміщення)
+            {x: -1.2, z: -16.8}, {x: -0.4, z: -16.8}, {x: 0.4, z: -16.8}, {x: 1.2, z: -16.8} // Ряд 4
         ];
+        // Виправлення позиції 6-ї кеглі: у третьому ряду координати мають бути симетричними
+        pinPositions[5] = {x: 0.8, z: -16.2}; 
 
-        // Параметри кулі
-        let ball = {
-            x: canvas.width / 2,
-            y: canvas.height * 0.85,
-            radius: 15,
-            vx: 0,
-            vy: 0,
-            isMoving: false
-        };
+        const container = document.getElementById('canvas-container');
+        const shootBtn = document.getElementById('shoot-btn');
+        const statusText = document.getElementById('status-text');
 
-        // Логіка трекінгу свайпу
-        let touchStartX = 0;
-        let touchStartY = 0;
+        init3D();
+        animate();
 
-        canvas.addEventListener('touchstart', (e) => {
-            if (ball.isMoving) return;
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        });
+        function init3D() {
+            // 1. Сцена та туман
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0d131a);
+            scene.fog = new THREE.FogExp2(0x0d131a, 0.05);
 
-        canvas.addEventListener('touchend', (e) => {
-            if (ball.isMoving) return;
+            // 2. Камера
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 2.5, 5);
+            camera.lookAt(0, 0.5, -10);
+
+            // 3. Рендерер
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // 4. Світло
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            const spotLight = new THREE.SpotLight(0xffeaa7, 1);
+            spotLight.position.set(0, 10, 2);
+            spotLight.castShadow = true;
+            scene.add(spotLight);
+
+            // 5. Доріжка (Венеціанська текстура дерева за допомогою матеріалу)
+            const laneGeo = new THREE.BoxGeometry(3.5, 0.1, 25);
+            const laneMat = new THREE.MeshStandardMaterial({ 
+                color: 0xd35400, 
+                roughness: 0.1,
+                metalness: 0.1
+            });
+            lane = new THREE.Mesh(laneGeo, laneMat);
+            lane.position.set(0, -0.05, -7.5);
+            lane.receiveShadow = true;
+            scene.add(lane);
+
+            // Стіни навколо доріжки
+            const wallGeo = new THREE.BoxGeometry(0.2, 0.5, 25);
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+            const leftWall = new THREE.Mesh(wallGeo, wallMat);
+            leftWall.position.set(-1.85, 0.2, -7.5);
+            scene.add(leftWall);
+            const rightWall = leftWall.clone();
+            rightWall.position.x = 1.85;
+            scene.add(rightWall);
+
+            // 6. Куля
+            const ballGeo = new THREE.SphereGeometry(0.25, 32, 32);
+            const ballMat = new THREE.MeshStandardMaterial({ 
+                color: 0x9b59b6, 
+                roughness: 0.2, 
+                metalness: 0.5 
+            });
+            ball = new THREE.Mesh(ballGeo, ballMat);
+            ball.position.set(0, 0.25, 3);
+            ball.castShadow = true;
+            scene.add(ball);
+
+            // 7. Лінія прицілу
+            const points = [new THREE.Vector3(0, 0.05, 3), new THREE.Vector3(0, 0.05, 0)];
+            const aimerGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const aimerMat = new THREE.LineBasicMaterial({ color: 0xf1c40f, linewidth: 2 });
+            aimerLine = new THREE.Line(aimerGeo, aimerMat);
+            scene.add(aimerLine);
+
+            // 8. Створення кеглів
+            createPins();
+        }
+
+        function createPins() {
+            // Очищення старих кеглів зі сцени
+            pins.forEach(p => scene.remove(p.mesh));
+            pins = [];
+
+            const pinMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
             
-            const touchEndX = e.changedTouches[0].clientX;
-            const touchEndY = e.changedTouches[0].clientY;
+            // Маленьке червоне кільце для декору кеглі
+            const stripeMat = new THREE.MeshBasicMaterial({ color: 0xe74c3c });
 
-            const diffX = touchEndX - touchStartX;
-            const diffY = touchEndY - touchStartY;
+            pinPositions.forEach((pos, index) => {
+                const pinGroup = new THREE.Group();
 
-            // Перевірка, що свайп був саме вгору
-            if (diffY < -30) {
-                ball.vx = diffX * 0.05; // Чутливість по горизонталі
-                ball.vy = diffY * 0.05; // Швидкість польоту вгору
-                ball.isMoving = true;
-            }
-        });
+                // Форма кеглі з циліндрів та сфер
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.5, 16), pinMat);
+                body.position.y = 0.25;
+                body.castShadow = true;
+                pinGroup.add(body);
 
-        // Перевірка колізій (збиття кеглів)
-        function checkCollisions() {
-            pins.forEach(pin => {
-                if (!pin.active) return;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), pinMat);
+                head.position.y = 0.53;
+                pinGroup.add(head);
+
+                const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.04, 16), stripeMat);
+                stripe.position.y = 0.42;
+                pinGroup.add(stripe);
+
+                pinGroup.position.set(pos.x, 0, pos.z);
+                scene.add(pinGroup);
+
+                pins.push({
+                    mesh: pinGroup,
+                    active: true,
+                    vx: 0,
+                    vy: 0,
+                    vz: 0,
+                    rotX: 0,
+                    rotZ: 0
+                });
+            });
+        }
+
+        // Головний цикл анімації графіки та фізики
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. Анімація прицілу
+            if (isAiming) {
+                angle += angleDirection * 0.03;
+                if (angle > 0.6 || angle < -0.6) {
+                    angleDirection *= -1;
+                }
+                // Оновлюємо напрямок лінії прицілу
+                const targetZ = 3 - Math.cos(angle) * 3;
+                const targetX = Math.sin(angle) * 3;
                 
-                // Переводимо відносні координати кеглі в реальні пікселі
-                const pinX = pin.x * canvas.width;
-                const pinY = pin.y * canvas.height;
-                const pinRadius = 8;
+                const positions = aimerLine.geometry.attributes.position.array;
+                positions[3] = targetX;
+                positions[5] = 3 - 3 * Math.cos(angle); // виправлено логіку довжини лінії
+                aimerLine.geometry.attributes.position.needsUpdate = true;
+            }
 
-                const dist = Math.hypot(ball.x - pinX, ball.y - pinY);
-                if (dist < ball.radius + pinRadius) {
-                    pin.active = false; // Кегля збита!
-                    // Додаємо очки
-                    let currentScore = parseInt(document.getElementById('score-val').innerText);
-                    document.getElementById('score-val').innerText = currentScore + 1;
-                }
-            });
-        }
+            // 2. Фізика кулі
+            if (isRolling) {
+                ball.position.x += ballVelocityX;
+                ball.position.z += ballVelocityZ;
+                
+                // Обертання кулі для реалізму
+                ball.rotation.x -= 0.15;
 
-        // Головний ігровий цикл (Оновлення екрану)
-        function update() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Перевірка зіткнення з кеглями
+                pins.forEach(pin => {
+                    if (pin.active) {
+                        const dist = ball.position.distanceTo(pin.mesh.position);
+                        if (dist < 0.4) { // Радіус зіткнення куля + кегля
+                            pin.active = false;
+                            // Передаємо імпульс швидкості від кулі до кеглі
+                            pin.vz = ballVelocityZ * 0.8;
+                            pin.vx = (pin.mesh.position.x - ball.position.x) * 0.5;
+                            pin.vy = 0.15; // Підкидання вгору
+                            pin.rotX = Math.random() * 0.2;
+                            pin.rotZ = (Math.random() - 0.5) * 0.2;
+                        }
+                    }
+                });
 
-            // 1. Малюємо борги та пунктирні лінії доріжки
-            const laneWidth = canvas.width * 0.7;
-            const laneX = (canvas.width - laneWidth) / 2;
-            
-            ctx.fillStyle = laneColor;
-            ctx.fillRect(laneX, 0, laneWidth, canvas.height);
-
-            // Пунктирні лінії зліва та справа
-            ctx.strokeStyle = '#b45309';
-            ctx.lineWidth = 3;
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            ctx.moveTo(laneX, 0); ctx.lineTo(laneX, canvas.height);
-            ctx.moveTo(laneX + laneWidth, 0); ctx.lineTo(laneX + laneWidth, canvas.height);
-            ctx.stroke();
-            ctx.setLineDash([]); // Скидаємо пунктир
-
-            // 2. Рух кулі
-            if (ball.isMoving) {
-                ball.x += ball.vx;
-                ball.y += ball.vy;
-                checkCollisions();
-
-                // Якщо куля вилетіла за межі екрану — повертаємо її назад
-                if (ball.y < 0 || ball.x < 0 || ball.x > canvas.width) {
-                    ball.isMoving = false;
-                    ball.x = canvas.width / 2;
-                    ball.y = canvas.height * 0.85;
-                    ball.vx = 0;
-                    ball.vy = 0;
-                    
-                    // Оновлюємо кидок для прикладу
-                    document.getElementById('throw-val').innerText = 2;
+                // Виліт кулі за межі доріжки
+                if (ball.position.z < -20) {
+                    isRolling = false;
+                    calculateFrameResult();
                 }
             }
 
-            // 3. Малюємо кеглі (білі кола)
+            // 3. Фізика розлітання збитих кеглів
             pins.forEach(pin => {
-                if (!pin.active) return;
-                ctx.beginPath();
-                ctx.arc(pin.x * canvas.width, pin.y * canvas.height, 8, 0, Math.PI * 2);
-                ctx.fillStyle = '#ffffff';
-                ctx.fill();
-                ctx.closePath();
+                if (!pin.active && Math.abs(pin.mesh.position.z) < 25) {
+                    pin.mesh.position.x += pin.vx;
+                    pin.mesh.position.y += pin.vy;
+                    pin.mesh.position.z += pin.vz;
+                    
+                    // Гравітація для кеглі
+                    if (pin.mesh.position.y > 0) {
+                        pin.vy -= 0.01;
+                    } else {
+                        pin.mesh.position.y = 0;
+                        pin.vx *= 0.8; // Тертя об підлогу
+                        pin.vz *= 0.8;
+                    }
+
+                    pin.mesh.rotation.x += pin.rotX;
+                    pin.mesh.rotation.z += pin.rotZ;
+                }
             });
 
-            // 4. Малюємо кулю (фіолетова як на скріншоті)
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-            ctx.fillStyle = '#a855f7';
-            ctx.fill();
-            ctx.strokeStyle = '#7e22ce';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.closePath();
-
-            requestAnimationFrame(update);
+            renderer.render(scene, camera);
         }
 
-        // Запуск гри
-        update();
+        // Обробник кнопка "СТРІЛЯТИ"
+        shootBtn.addEventListener('click', () => {
+            if (isRolling) return;
+
+            isAiming = false;
+            isRolling = true;
+            shootBtn.disabled = true;
+            aimerLine.visible = false;
+            statusText.innerText = "Куля наближається до цілі...";
+
+            // Задаємо вектор швидкості кулі на основі кута прицілювання
+            const speed = 0.35;
+            ballVelocityX = Math.sin(angle) * speed;
+            ballVelocityZ = -Math.cos(angle) * speed;
+        });
+
+        function calculateFrameResult() {
+            // Рахуємо скільки кеглів впало (стали неактивними у цьому фреймі)
+            let hitCount = 0;
+            pins.forEach(pin => {
+                // Якщо кегля змістилась або впала — вона вважається збитою
+                if (!pin.active && pin.mesh.visible) {
+                    pin.mesh.visible = false; // Ховаємо збиту кеглю до кінця фрейму
+                    hitCount++;
+                }
+            });
+
+            pinsLeft -= hitCount;
+            rolls.push(hitCount);
+            updateScoreDisplay();
+
+            if (currentRoll === 1) {
+                if (pinsLeft === 0) {
+                    statusText.innerText = "💥 STRIIIIKE! 💥";
+                    rolls.push(0); // Закриваємо другий кидок
+                    endFrame();
+                } else {
+                    statusText.innerText = `Збито: ${hitCount}. Другий кидок!`;
+                    currentRoll = 2;
+                    document.getElementById('roll-val').innerText = currentRoll;
+                    resetBallOnly();
+                }
+            } else {
+                if (pinsLeft === 0) {
+                    statusText.innerText = "✨ SPARE! ✨";
+                } else {
+                    statusText.innerText = `Результат фрейму: ${10 - pinsLeft} кеглів`;
+                }
+                endFrame();
+            }
+        }
+
+        function updateScoreDisplay() {
+            let score = 0;
+            let rollIndex = 0;
+
+            for (let frame = 0; frame < currentFrame; frame++) {
+                if (rollIndex >= rolls.length) break;
+
+                if (rolls[rollIndex] === 10) { // Strike
+                    score += 10 + (rolls[rollIndex + 1] || 0) + (rolls[rollIndex + 2] || 0);
+                    rollIndex += 2;
+                } else if ((rolls[rollIndex] + (rolls[rollIndex + 1] || 0)) === 10) { // Spare
+                    score += 10 + (rolls[rollIndex + 2] || 0);
+                    rollIndex += 2;
+                } else {
+                    score += (rolls[rollIndex] || 0) + (rolls[rollIndex + 1] || 0);
+                    rollIndex += 2;
+                }
+            }
+            totalScore = score;
+            document.getElementById('score-val').innerText = totalScore;
+        }
+
+        function resetBallOnly() {
+            setTimeout(() => {
+                ball.position.set(0, 0.25, 3);
+                aimerLine.visible = true;
+                isAiming = true;
+                isRolling = false;
+                shootBtn.disabled = false;
+            }, 1000);
+        }
+
+        function endFrame() {
+            setTimeout(() => {
+                currentFrame++;
+                
+                if (currentFrame > 10) {
+                    statusText.innerText = `Гру закінчено! Твій рахунок: ${totalScore}`;
+                    shootBtn.innerText = "ЗІГРАТИ ЗНОВУ";
+                    shootBtn.disabled = false;
+                    shootBtn.onclick = () => { location.reload(); };
+                    return;
+                }
+
+                currentRoll = 1;
+                pinsLeft = 10;
+                
+                document.getElementById('frame-val').innerText = currentFrame;
+                document.getElementById('roll-val').innerText = currentRoll;
+                
+                // Повертаємо кулю та заново розставляємо кеглі
+                ball.position.set(0, 0.25, 3);
+                createPins();
+                
+                aimerLine.visible = true;
+                isAiming = true;
+                isRolling = false;
+                shootBtn.disabled = false;
+                statusText.innerText = "Впіймай приціл та тисни кнопку!";
+            }, 1500);
+        }
+
+        // Адаптація під зміну розмірів екрану
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
     </script>
 </body>
 </html>
