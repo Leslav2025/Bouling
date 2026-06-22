@@ -129,7 +129,6 @@
         let pinsLeft = 10;
         let rolls = [];
 
-        // Стани гри: 'aiming' (прицілювання), 'ready' (приціл зафіксовано, чекаємо кидка), 'rolling' (куля котиться)
         let gameState = 'aiming'; 
         
         let angle = 0;
@@ -138,7 +137,7 @@
         let ballVelocityZ = 0;
 
         let scene, camera, renderer;
-        let ball, lane, aimerLine;
+        let ball, lane, 3dArrow;
         let pins = [];
         const pinPositions = [
             {x: 0, z: -15}, 
@@ -150,6 +149,85 @@
         const container = document.getElementById('canvas-container');
         const actionBtn = document.getElementById('action-btn');
         const statusText = document.getElementById('status-text');
+
+        // Звуковий рушій Web Audio API
+        let audioCtx = null;
+        let rollSoundNode = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playRollSound() {
+            initAudio();
+            // Генерація низькочастотного шуму кочення кулі
+            const bufferSize = audioCtx.sampleRate * 2;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            noise.loop = true;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(150, audioCtx.currentTime);
+
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            noise.start();
+            rollSoundNode = { source: noise, gain: gain };
+        }
+
+        function stopRollSound() {
+            if (rollSoundNode) {
+                try {
+                    rollSoundNode.source.stop();
+                } catch(e){}
+                rollSoundNode = null;
+            }
+        }
+
+        function playHitSound() {
+            initAudio();
+            // Звук удару (вибуховий спад шуму + високий металевий дзвін кеглі)
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.4);
+
+            gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+
+            // Додатковий дзвін
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.start();
+            osc2.stop(audioCtx.currentTime + 0.3);
+        }
 
         init3D();
         animate();
@@ -168,16 +246,16 @@
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             scene.add(ambientLight);
 
-            const spotLight = new THREE.SpotLight(0xffeaa7, 1);
+            const spotLight = new THREE.SpotLight(0xffeaa7, 1.2);
             spotLight.position.set(0, 10, 2);
             spotLight.castShadow = true;
             scene.add(spotLight);
 
             const laneGeo = new THREE.BoxGeometry(3.5, 0.1, 25);
-            const laneMat = new THREE.MeshStandardMaterial({ color: 0xd35400, roughness: 0.1, metalness: 0.1 });
+            const laneMat = new THREE.MeshStandardMaterial({ color: 0xd35400, roughness: 0.15, metalness: 0.1 });
             lane = new THREE.Mesh(laneGeo, laneMat);
             lane.position.set(0, -0.05, -7.5);
             lane.receiveShadow = true;
@@ -199,11 +277,23 @@
             ball.castShadow = true;
             scene.add(ball);
 
-            const points = [new THREE.Vector3(0, 0.05, 3), new THREE.Vector3(0, 0.05, 0)];
-            const aimerGeo = new THREE.BufferGeometry().setFromPoints(points);
-            const aimerMat = new THREE.LineBasicMaterial({ color: 0xf1c40f, linewidth: 2 });
-            aimerLine = new THREE.Line(aimerGeo, aimerMat);
-            scene.add(aimerLine);
+            // СВІТЛЯЧА НЕОНОВА СТРІЛКА ЗАМІСТЬ ТОНКОЇ ЛІНІЇ
+            const arrowShape = new THREE.Shape();
+            arrowShape.moveTo(0, 0);
+            arrowShape.lineTo(0.12, -0.3);
+            arrowShape.lineTo(0.05, -0.3);
+            arrowShape.lineTo(0.05, -1.2);
+            arrowShape.lineTo(-0.05, -1.2);
+            arrowShape.lineTo(-0.05, -0.3);
+            arrowShape.lineTo(-0.12, -0.3);
+            arrowShape.lineTo(0, 0);
+
+            const arrowGeo = new THREE.ShapeGeometry(arrowShape);
+            const arrowMat = new THREE.MeshBasicMaterial({ color: 0x00d2d3, side: THREE.DoubleSide });
+            3dArrow = new THREE.Mesh(arrowGeo, arrowMat);
+            3dArrow.position.set(0, 0.08, 2.5); // Ставимо трохи попереду кулі
+            3dArrow.rotation.x = Math.PI / 2; // Кладемо на підлогу
+            scene.add(3dArrow);
 
             createPins();
         }
@@ -244,48 +334,48 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Оновлення прицілу працює тільки в стані 'aiming'
             if (gameState === 'aiming') {
-                angle += angleDirection * 0.03;
-                if (angle > 0.6 || angle < -0.6) {
+                angle += angleDirection * 0.035;
+                if (angle > 0.65 || angle < -0.65) {
                     angleDirection *= -1;
                 }
-                const targetX = Math.sin(angle) * 3;
-                const targetZ = 3 - Math.cos(angle) * 3;
-                
-                const positions = aimerLine.geometry.attributes.position.array;
-                positions[3] = targetX;
-                positions[5] = targetZ;
-                aimerLine.geometry.attributes.position.needsUpdate = true;
+                // Обертаємо меш стрілки навколо центру кулі
+                3dArrow.rotation.z = angle;
             }
 
-            // Рух кулі
             if (gameState === 'rolling') {
                 ball.position.x += ballVelocityX;
                 ball.position.z += ballVelocityZ;
-                ball.rotation.x -= 0.15;
+                ball.rotation.x -= 0.18;
 
+                let playHit = false;
                 pins.forEach(pin => {
                     if (pin.active) {
                         const dist = ball.position.distanceTo(pin.mesh.position);
-                        if (dist < 0.4) {
+                        if (dist < 0.42) {
                             pin.active = false;
-                            pin.vz = ballVelocityZ * 0.8;
-                            pin.vx = (pin.mesh.position.x - ball.position.x) * 0.5;
-                            pin.vy = 0.15;
-                            pin.rotX = Math.random() * 0.2;
-                            pin.rotZ = (Math.random() - 0.5) * 0.2;
+                            pin.vz = ballVelocityZ * 0.85;
+                            pin.vx = (pin.mesh.position.x - ball.position.x) * 0.6;
+                            pin.vy = 0.18;
+                            pin.rotX = Math.random() * 0.25;
+                            pin.rotZ = (Math.random() - 0.5) * 0.25;
+                            playHit = true;
                         }
                     }
                 });
 
+                if (playHit) {
+                    playHitSound();
+                }
+
+                // Звук затухає, якщо куля з'їжджає або гальмує
                 if (ball.position.z < -20) {
                     gameState = 'calculating';
+                    stopRollSound();
                     calculateFrameResult();
                 }
             }
 
-            // Фізика збитих кеглів
             pins.forEach(pin => {
                 if (!pin.active && Math.abs(pin.mesh.position.z) < 25) {
                     pin.mesh.position.x += pin.vx;
@@ -293,11 +383,11 @@
                     pin.mesh.position.z += pin.vz;
                     
                     if (pin.mesh.position.y > 0) {
-                        pin.vy -= 0.01;
+                        pin.vy -= 0.012;
                     } else {
                         pin.mesh.position.y = 0;
-                        pin.vx *= 0.8;
-                        pin.vz *= 0.8;
+                        pin.vx *= 0.85;
+                        pin.vz *= 0.85;
                     }
                     pin.mesh.rotation.x += pin.rotX;
                     pin.mesh.rotation.z += pin.rotZ;
@@ -307,25 +397,27 @@
             renderer.render(scene, camera);
         }
 
-        // Логіка єдиної інтерактивної кнопки
         actionBtn.addEventListener('click', () => {
+            initAudio(); // Активуємо аудіо-контекст кліком користувача
+
             if (gameState === 'aiming') {
-                // Фіксуємо приціл
                 gameState = 'ready';
                 actionBtn.innerText = "Кидок!";
                 actionBtn.classList.add('ready-to-shoot');
                 statusText.innerText = "Напрямок зафіксовано. Запускай кулю!";
             } 
             else if (gameState === 'ready') {
-                // Запускаємо кулю
                 gameState = 'rolling';
                 actionBtn.disabled = true;
                 actionBtn.classList.remove('ready-to-shoot');
-                aimerLine.visible = false;
+                3dArrow.visible = false;
                 statusText.innerText = "Куля котиться до кеглів...";
 
-                const speed = 0.35;
-                ballVelocityX = Math.sin(angle) * speed;
+                playRollSound();
+
+                const speed = 0.38;
+                // Стрілка була направлена вперед (по осі Z), враховуємо це для запуску кулі
+                ballVelocityX = -Math.sin(angle) * speed;
                 ballVelocityZ = -Math.cos(angle) * speed;
             }
         });
@@ -389,9 +481,8 @@
         function resetBallOnly() {
             setTimeout(() => {
                 ball.position.set(0, 0.25, 3);
-                aimerLine.visible = true;
+                3dArrow.visible = true;
                 
-                // Повертаємо стан прицілювання
                 gameState = 'aiming';
                 actionBtn.innerText = "Зафіксувати приціл";
                 actionBtn.disabled = false;
@@ -420,7 +511,7 @@
                 ball.position.set(0, 0.25, 3);
                 createPins();
                 
-                aimerLine.visible = true;
+                3dArrow.visible = true;
                 gameState = 'aiming';
                 actionBtn.innerText = "Зафіксувати приціл";
                 actionBtn.disabled = false;
