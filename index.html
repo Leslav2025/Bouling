@@ -55,16 +55,43 @@
             border-top: 1px dashed #34495e;
             padding-top: 4px;
             font-size: 13px;
+            align-items: center;
         }
 
         #high-score-container { color: #f1c40f; font-weight: bold; }
         #coins-container { color: #2ecc71; font-weight: bold; }
 
+        .top-buttons {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 6px;
+        }
+
+        #open-shop-btn, #open-withdraw-btn {
+            flex: 1;
+            background: #1c2833; 
+            border: 1px solid #f39c12; 
+            color: #f39c12;
+            padding: 8px 12px; 
+            font-size: 13px; 
+            border-radius: 5px; 
+            cursor: pointer;
+            font-weight: bold; 
+            text-align: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #open-withdraw-btn {
+            border-color: #2ecc71;
+            color: #2ecc71;
+        }
+
         #canvas-container {
             position: relative;
             width: 100%;
             max-width: 400px;
-            height: 52vh;
+            height: 50vh;
             border: 3px solid #2c3e50;
             border-radius: 12px;
             overflow: hidden;
@@ -92,11 +119,11 @@
             transition: height 0.05s linear;
         }
 
-        /* Стилі Магазину */
-        #shop-overlay {
+        /* Оверлеї (Магазин та Вивід) */
+        #shop-overlay, #withdraw-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(13, 19, 26, 0.95);
+            background: rgba(13, 19, 26, 0.98);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -105,14 +132,14 @@
             z-index: 100;
         }
 
-        #shop-overlay h2 { color: #f39c12; margin-top: 0; margin-bottom: 15px; }
+        #shop-overlay h2, #withdraw-overlay h2 { color: #f39c12; margin-top: 0; margin-bottom: 15px; }
 
         .shop-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
             width: 100%;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .shop-item {
@@ -136,15 +163,58 @@
         .item-name { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
         .item-price { font-size: 12px; color: #2ecc71; font-weight: bold; }
 
-        #close-shop-btn {
-            background: #34495e; color: white; border: none; padding: 10px 20px;
-            border-radius: 5px; font-weight: bold; cursor: pointer; width: auto;
+        /* Форма виведення крипти */
+        .withdraw-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .withdraw-form input {
+            background: #1c2833;
+            border: 1px solid #34495e;
+            padding: 12px;
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            text-align: center;
+            width: 100%;
+        }
+        .withdraw-form input:focus { border-color: #2ecc71; }
+        
+        #ton-connect-btn-container {
+            margin: 5px 0;
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        #wallet-address-display {
+            font-size: 11px;
+            color: #2ecc71;
+            word-break: break-all;
+            background: rgba(46, 204, 113, 0.1);
+            padding: 6px;
+            border-radius: 5px;
+            width: 100%;
+            text-align: center;
+            display: none;
         }
 
-        #open-shop-btn {
-            background: #1c2833; border: 1px solid #f39c12; color: #f39c12;
-            padding: 6px 12px; font-size: 13px; border-radius: 5px; cursor: pointer;
-            font-weight: bold; margin-bottom: 6px; -webkit-tap-highlight-color: transparent;
+        .withdraw-info {
+            font-size: 12px;
+            color: #95a5a6;
+            text-align: center;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .close-btn {
+            background: #34495e; color: white; border: none; padding: 10px 20px;
+            border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; max-width: 200px;
         }
 
         #controls {
@@ -164,7 +234,7 @@
             text-shadow: 0 1px 2px #000;
         }
 
-        button {
+        button.main-action {
             background: linear-gradient(135deg, #f39c12, #d35400);
             color: white;
             border: none;
@@ -189,6 +259,8 @@
         button:disabled { background: #7f8c8d; box-shadow: none; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Підключення TonConnect UI SDK -->
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 </head>
 <body>
 
@@ -206,7 +278,10 @@
         </div>
     </div>
 
-    <button id="open-shop-btn">🛒 МАГАЗИН КУЛЬ</button>
+    <div class="top-buttons">
+        <button id="open-shop-btn">🛒 МАГАЗИН КУЛЬ</button>
+        <button id="open-withdraw-btn">💸 ВИВЕСТИ UA</button>
+    </div>
 
     <div id="canvas-container">
         <!-- Шкала сили -->
@@ -214,17 +289,33 @@
             <div id="power-bar-fill"></div>
         </div>
 
-        <!-- Вікно магазину всередині канвасу -->
+        <!-- Вікно магазину -->
         <div id="shop-overlay" style="display: none;">
             <h2>Магазин куль</h2>
             <div class="shop-grid" id="shop-grid"></div>
-            <button id="close-shop-btn">Назад до гри</button>
+            <button class="close-btn" id="close-shop-btn">Назад</button>
+        </div>
+
+        <!-- Вікно виведення коштів -->
+        <div id="withdraw-overlay" style="display: none;">
+            <h2>Виведення токенів UA</h2>
+            <div class="withdraw-info">Мінімальна сума: 50 UA.<br>Підключіть гаманець TON для автоматичного визначення адреси.</div>
+            
+            <div class="withdraw-form">
+                <!-- Контейнер для кнопки TonConnect -->
+                <div id="ton-connect-btn-container"></div>
+                <div id="wallet-address-display"></div>
+
+                <input type="number" id="withdraw-amount" placeholder="Сума UA для виведення">
+                <button class="main-action" id="submit-withdraw-btn" style="padding: 10px; font-size: 14px;" disabled>ПІДКЛЮЧІТЬ ГАМАНЕЦЬ</button>
+            </div>
+            <button class="close-btn" id="close-withdraw-btn">Назад</button>
         </div>
     </div>
 
     <div id="controls">
         <div class="status-msg" id="status-text">Оберіть напрямок кидка!</div>
-        <button id="action-btn">Зафіксувати приціл</button>
+        <button id="action-btn" class="main-action">Зафіксувати приціл</button>
     </div>
 
     <script>
@@ -270,6 +361,7 @@
         const powerContainer = document.getElementById('power-bar-container');
         const powerFill = document.getElementById('power-bar-fill');
         const shopOverlay = document.getElementById('shop-overlay');
+        const withdrawOverlay = document.getElementById('withdraw-overlay');
 
         document.getElementById('high-score-val').innerText = highScore;
         document.getElementById('coins-val').innerText = coins;
@@ -443,7 +535,7 @@
                 gameState = 'power'; powerValue = 0; powerDirection = 1;
                 powerContainer.style.display = 'flex';
                 actionBtn.innerText = "КИДОК!"; actionBtn.classList.add('ready-to-shoot');
-                statusText.innerText = "Впіймай максимальну силу кидка!";
+                statusText.innerText = "Впіймай maximal силу кидка!";
             } 
             else if (gameState === 'power') {
                 gameState = 'rolling'; actionBtn.disabled = true; actionBtn.classList.remove('ready-to-shoot');
@@ -460,16 +552,13 @@
             pins.forEach(pin => { if (!pin.active && pin.mesh.visible) { pin.mesh.visible = false; hitCount++; } });
             pinsLeft -= hitCount; rolls.push(hitCount);
             
-            // Нарахування UA за збиті кеглі
             addCoins(hitCount);
-
             updateScoreDisplay();
 
             if (currentRoll === 1) {
                 if (pinsLeft === 0) {
                     statusText.innerText = "💥 STRIIIIKE! (+10 UA) 💥";
-                    addCoins(10); // Бонус за страйк
-                    rolls.push(0); endFrame();
+                    addCoins(10); rolls.push(0); endFrame();
                 } else {
                     statusText.innerText = `Збито: ${hitCount}. Другий кидок!`;
                     currentRoll = 2; document.getElementById('roll-val').innerText = currentRoll;
@@ -478,7 +567,7 @@
             } else {
                 if (pinsLeft === 0) {
                     statusText.innerText = "✨ SPARE! (+5 UA) ✨";
-                    addCoins(5); // Бонус за спейр
+                    addCoins(5);
                 } else {
                     statusText.innerText = `Результат фрейму: ${10 - pinsLeft} кеглів`;
                 }
@@ -530,62 +619,116 @@
             }, 1500);
         }
 
-        // Рендеринг елементів магазину
         function renderShop() {
             const grid = document.getElementById('shop-grid');
             grid.innerHTML = '';
-            
             Object.keys(ballSkins).forEach(key => {
                 const item = ballSkins[key];
                 const isOwned = ownedBalls.includes(key);
                 const isSelected = currentBallSkin === key;
-
                 const div = document.createElement('div');
                 div.className = `shop-item ${isSelected ? 'selected' : ''} ${isOwned ? 'owned' : ''}`;
-                
                 let label = isSelected ? 'Обрано' : (isOwned ? 'В наявності' : `${item.price} UA`);
-
                 div.innerHTML = `
                     <div class="ball-preview" style="background: ${item.color};"></div>
                     <div class="item-name">${item.name}</div>
                     <div class="item-price" style="color: ${isOwned ? '#f39c12' : '#2ecc71'}">${label}</div>
                 `;
-
                 div.addEventListener('click', () => {
                     if (isOwned) {
-                        currentBallSkin = key;
-                        localStorage.setItem('bowling_current_ball', key);
-                        ballMaterial.map = createBallTexture(key);
-                        ballMaterial.needsUpdate = true;
-                        renderShop();
+                        currentBallSkin = key; localStorage.setItem('bowling_current_ball', key);
+                        ballMaterial.map = createBallTexture(key); ballMaterial.needsUpdate = true; renderShop();
                     } else if (coins >= item.price) {
-                        coins -= item.price;
-                        ownedBalls.push(key);
-                        currentBallSkin = key;
-                        localStorage.setItem('bowling_coins', coins);
-                        localStorage.setItem('bowling_owned_balls', JSON.stringify(ownedBalls));
-                        localStorage.setItem('bowling_current_ball', key);
-                        document.getElementById('coins-val').innerText = coins;
-                        ballMaterial.map = createBallTexture(key);
-                        ballMaterial.needsUpdate = true;
-                        renderShop();
-                    } else {
-                        alert('Недостатньо UA! Продовжуй грати та збивати кеглі.');
-                    }
+                        coins -= item.price; ownedBalls.push(key); currentBallSkin = key;
+                        localStorage.setItem('bowling_coins', coins); localStorage.setItem('bowling_owned_balls', JSON.stringify(ownedBalls)); localStorage.setItem('bowling_current_ball', key);
+                        document.getElementById('coins-val').innerText = coins; ballMaterial.map = createBallTexture(key); ballMaterial.needsUpdate = true; renderShop();
+                    } else { alert('Недостатньо UA!'); }
                 });
-
                 grid.appendChild(div);
             });
         }
 
-        // Кнопки магазину
-        document.getElementById('open-shop-btn').addEventListener('click', () => {
-            if(gameState === 'aiming' || gameState === 'ready') {
-                shopOverlay.style.display = 'flex';
-                renderShop();
+        // Кнопки Магазину
+        document.getElementById('open-shop-btn').addEventListener('click', () => { if(gameState==='aiming') shopOverlay.style.display = 'flex'; });
+        document.getElementById('close-shop-btn').addEventListener('click', () => { shopOverlay.style.display = 'none'; });
+
+        // Кнопки Виведення
+        document.getElementById('open-withdraw-btn').addEventListener('click', () => { if(gameState==='aiming') withdrawOverlay.style.display = 'flex'; });
+        document.getElementById('close-withdraw-btn').addEventListener('click', () => { withdrawOverlay.style.display = 'none'; });
+
+
+        // ІНТЕГРАЦІЯ TONCONNECT КРИПТОГАМАНЦЯ
+        let userWalletAddress = null;
+        
+        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: 'https://leslav2025.github.io/Bouling/tonconnect-manifest.json',
+            buttonRootId: 'ton-connect-btn-container'
+        });
+
+        // Стежимо за підключенням гаманця
+        tonConnectUI.onStatusChange(wallet => {
+            const submitBtn = document.getElementById('submit-withdraw-btn');
+            const addressDisplay = document.getElementById('wallet-address-display');
+            
+            if (wallet) {
+                // Отримуємо сиру адресу гаманця
+                userWalletAddress = wallet.account.address;
+                
+                // Переформатуємо у звичний вигляд для показу
+                const shortAddress = userWalletAddress.slice(0, 6) + '...' + userWalletAddress.slice(-6);
+                addressDisplay.innerText = `Ваш гаманець: ${shortAddress}`;
+                addressDisplay.style.display = 'block';
+                
+                submitBtn.disabled = false;
+                submitBtn.innerText = "ВИВЕСТИ НА ГАМАНЕЦЬ";
+            } else {
+                userWalletAddress = null;
+                addressDisplay.style.display = 'none';
+                submitBtn.disabled = true;
+                submitBtn.innerText = "ПІДКЛЮЧІТЬ ГАМАНЕЦЬ";
             }
         });
-        document.getElementById('close-shop-btn').addEventListener('click', () => { shopOverlay.style.display = 'none'; });
+
+        // Логіка відправки крипто-заявки на вивід
+        document.getElementById('submit-withdraw-btn').addEventListener('click', () => {
+            const amount = parseInt(document.getElementById('withdraw-amount').value);
+
+            if (!userWalletAddress) {
+                alert('Будь ласка, спочатку підключіть ваш гаманець!');
+                return;
+            }
+            if (isNaN(amount) || amount < 50) {
+                alert('Мінімальна сума виведення — 50 UA!');
+                return;
+            }
+            if (amount > coins) {
+                alert('Недостатньо UA на балансі!');
+                return;
+            }
+
+            // Списуємо UA токени з ігрового балансу
+            coins -= amount;
+            localStorage.setItem('bowling_coins', coins);
+            document.getElementById('coins-val').innerText = coins;
+
+            // Секретний перевірочний код проти накруток
+            const cryptoCode = 'UA-CRYPTO-' + Math.floor(100000 + Math.random() * 900000);
+
+            // Формуємо крипто-заявку для Telegram
+            const textMessage = `👋 Привіт! Я хочу вивести ${amount} UA на свій гаманець.\n\n` + 
+                                `📍 Адреса мого гаманця:\n${userWalletAddress}\n\n` +
+                                `🔐 Код верифікації: ${cryptoCode}`;
+            
+            const tgUrl = `https://t.me/Leslav?text=${encodeURIComponent(textMessage)}`;
+
+            alert('Крипто-заявку згенеровано! Зараз вас перенаправить до @Leslav, щоб надіслати адресу вашого гаманця.');
+            
+            withdrawOverlay.style.display = 'none';
+            document.getElementById('withdraw-amount').value = '';
+
+            // Перенаправляємо в Telegram
+            window.open(tgUrl, '_blank');
+        });
 
         window.addEventListener('resize', () => {
             camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix();
