@@ -326,7 +326,6 @@
         let ownedBalls = JSON.parse(localStorage.getItem('bowling_owned_balls')) || ['classic'];
         let currentBallSkin = localStorage.getItem('bowling_current_ball') || 'classic';
 
-        // КУЛІ З ХАРАКТЕРИСТИКАМИ: speedMult (швидкість прицілу), coinMult (множник UA монет)
         const ballSkins = {
             classic: { name: 'Класична 7', price: 0, color: '#8e44ad', stripe: '#f1c40f', text: '7', speedMult: 1.0, coinMult: 1 },
             lime: { name: 'Неоновий Лайм', price: 50, color: '#2ecc71', stripe: '#ffffff', text: '$', speedMult: 0.95, coinMult: 1.2 },
@@ -369,7 +368,6 @@
 
         function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
 
-        // ЗВУК УСПІШНОЇ ПОКУПКИ (Каскад нот вгору)
         function playBuySound() {
             initAudio();
             const now = audioCtx.currentTime;
@@ -383,7 +381,6 @@
             });
         }
 
-        // ЗВУК ВИБОРУ/ЕКІПІРУВАННЯ КУЛІ (Короткий клік)
         function playSelectSound() {
             initAudio();
             const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -506,7 +503,6 @@
             requestAnimationFrame(animate);
 
             if (gameState === 'aiming') {
-                // ШВИДКІСТЬ ПРИЦІЛУ ЗАЛЕЖИТЬ ВІД ОБРАНОЇ КУЛІ
                 const ballSpeedModifier = ballSkins[currentBallSkin]?.speedMult || 1.0;
                 angle += angleDirection * (0.011 * ballSpeedModifier);
                 
@@ -598,7 +594,6 @@
             }
         }
 
-        // МНОЖЕННЯ МОНЕТ ЗАЛЕЖИТЬ ВІД КУЛІ
         function addCoins(amount) {
             if (amount <= 0) return;
             const multiplier = ballSkins[currentBallSkin]?.coinMult || 1;
@@ -668,11 +663,11 @@
                 div.addEventListener('click', () => {
                     initAudio();
                     if (isOwned) {
-                        playSelectSound(); // Звук кліку
+                        playSelectSound();
                         currentBallSkin = key; localStorage.setItem('bowling_current_ball', key);
                         ballMaterial.map = createBallTexture(key); ballMaterial.needsUpdate = true; renderShop();
                     } else if (coins >= item.price) {
-                        playBuySound(); // Звук грошей/купівлі
+                        playBuySound();
                         coins -= item.price; ownedBalls.push(key); currentBallSkin = key;
                         localStorage.setItem('bowling_coins', coins); localStorage.setItem('bowling_owned_balls', JSON.stringify(ownedBalls)); localStorage.setItem('bowling_current_ball', key);
                         document.getElementById('coins-val').innerText = coins; ballMaterial.map = createBallTexture(key); ballMaterial.needsUpdate = true; renderShop();
@@ -715,6 +710,7 @@
             }
         });
 
+        // НАДІЙНИЙ БАГАТОРАЗОВИЙ ВИВІД КОШТІВ
         document.getElementById('submit-withdraw-btn').addEventListener('click', () => {
             const amount = parseInt(document.getElementById('withdraw-amount').value);
 
@@ -741,27 +737,42 @@
                                 `📍 Адреса мого гаманця:\n${userWalletAddress}\n\n` +
                                 `🔐 Код верифікації: ${cryptoCode}`;
 
-            const textArea = document.createElement("textarea");
-            textArea.value = textMessage;
-            textArea.style.position = "fixed"; 
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-
-            try {
-                document.execCommand('copy');
-                alert('📋 Заявку автоматично СКОПІЙОВАНО в буфер обміну!\n\nЗараз відкриється Telegram — просто натисніть "ВСТАВИТИ" у полі введення та надішліть мені повідомлення.');
-            } catch (err) {
-                navigator.clipboard.writeText(textMessage);
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textMessage).then(() => {
+                    alert('📋 Заявку автоматично СКОПІЙОВАНО в буфер обміну!\n\nЗараз відкриється Telegram — просто натисніть "ВСТАВИТИ" у полі введення та надішліть повідомлення.');
+                    redirectToTelegram();
+                }).catch(err => {
+                    fallbackCopyText(textMessage);
+                });
+            } else {
+                fallbackCopyText(textMessage);
             }
-            
-            document.body.removeChild(textArea);
-            withdrawOverlay.style.display = 'none';
-            document.getElementById('withdraw-amount').value = '';
 
-            setTimeout(() => {
-                window.location.href = 'https://t.me/Leslav';
-            }, 100);
+            function fallbackCopyText(text) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; 
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert('📋 Заявку СКОПІЙОВАНО!\n\nПерейдіть в Telegram та вставте текст.');
+                } catch (err) {
+                    alert('Помилка автокопіювання. Скопіюйте цей текст вручну:\n\n' + text);
+                }
+                document.body.removeChild(textArea);
+                redirectToTelegram();
+            }
+
+            function redirectToTelegram() {
+                withdrawOverlay.style.display = 'none';
+                document.getElementById('withdraw-amount').value = '';
+                setTimeout(() => {
+                    window.location.href = 'https://t.me/Leslav';
+                }, 100);
+            }
         });
 
         window.addEventListener('resize', () => {
